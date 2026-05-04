@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Car A* Controller</title>
+<script src="/static/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #11191f;
+    --surface: #182226;
+    --surface2: #1f2d33;
+    --border: #3a4a50;
+    --accent: #00a6a6;
+    --accent-hover: #12c7c7;
+    --accent2: #e47128;
+    --green: #00b8a9;
+    --red: #e05a47;
+    --yellow: #f2c94c;
+    --text: #d8e2e6;
+    --text-dim: #8fa1a8;
+    --mono: 'Consolas', 'Courier New', monospace;
+    --body: 'Segoe UI', Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: linear-gradient(90deg, rgba(0,166,166,0.05), transparent 32%, rgba(0,0,0,0.12));
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #10181c;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  #status-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--text-dim); letter-spacing: 1px;
+  }
+
+  #status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+    transition: all 0.3s;
+  }
+
+  #status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(820px, 1fr) minmax(320px, 420px);
+    grid-template-rows: auto auto;
+    padding: 18px;
+    gap: 20px;
+    max-width: 1800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 20px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 1px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-header .panel-title {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  /* ── Grid ── */
+  .grid-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .controls-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+
+  .mode-btn {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 1px;
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    background: #11191f;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 999px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .mode-btn:hover { border-color: var(--accent); color: var(--accent-hover); background: #17252a; }
+  .mode-btn.active { border-color: var(--accent); color: #061113; background: var(--accent); }
+
+  .mode-btn.start.active { background: var(--green); border-color: var(--green); }
+  .mode-btn.end.active   { background: var(--accent2); border-color: var(--accent2); }
+  .mode-btn.wall.active  { background: var(--text-dim); border-color: var(--text-dim); }
+
+  .action-btn {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+    padding: 10px 22px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    border-radius: 999px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    margin-left: auto;
+  }
+
+  .btn-solve  { background: var(--accent); color: #061113; }
+  .btn-solve:hover { background: var(--accent-hover); }
+  .btn-clear  { background: #11191f; border: 1px solid var(--border); color: var(--text); margin-left: 0; }
+  .btn-clear:hover { border-color: var(--red); color: var(--red); }
+  .btn-example { background: #1f2d33; border-color: var(--accent); color: var(--accent-hover); margin-left: 0; }
+  .btn-example:hover { background: var(--accent); color: #061113; }
+  .btn-send   { background: var(--green); color: #061113; }
+  .btn-send:hover { background: var(--accent-hover); }
+  .btn-send:disabled { background: var(--text-dim); cursor: not-allowed; opacity: 0.5; }
+
+  .grid-wrapper {
+    display: flex;
+    justify-content: center;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(8, 76px);
+    grid-template-rows: repeat(8, 76px);
+    gap: 4px;
+    background: #0d1418;
+    padding: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .cell {
+    width: 76px; height: 76px;
+    background: var(--surface2);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    transition: background 0.15s, transform 0.1s;
+    position: relative;
+    user-select: none;
+  }
+
+  .cell:hover { background: #263941; }
+
+  .cell.wall { background: #0b1114; }
+  .cell.wall::after {
+    content: '';
+    position: absolute; inset: 4px;
+    background: repeating-linear-gradient(45deg, var(--border) 0, var(--border) 1px, transparent 0, transparent 50%);
+    background-size: 6px 6px;
+  }
+
+  .cell.start { background: rgba(0,184,169,0.18); border: 2px solid var(--green); }
+
+  .cell.end { background: rgba(228,113,40,0.18); border: 2px solid var(--accent2); }
+
+  .cell.start.path { background: rgba(0,184,169,0.18); border: 2px solid var(--green); }
+  .cell.end.path { background: rgba(228,113,40,0.18); border: 2px solid var(--accent2); }
+
+  .cell.explored { background: rgba(0,166,166,0.12); }
+  .cell.path {
+    background: rgba(0,166,166,0.26);
+    border: 1px solid rgba(0,166,166,0.65);
+  }
+  .cell.path::before {
+    content: '';
+    position: absolute; inset: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  .cell.start.path::before, .cell.end.path::before { display: none; }
+
+  /* coord label */
+  .cell .coord {
+    position: absolute;
+    top: 4px; left: 5px;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+
+  .cell .cell-num {
+    font-family: var(--mono);
+    font-size: 1.25rem;
+    color: var(--text);
+    opacity: 0.85;
+  }
+
+  .cell .cell-cost {
+    position: absolute;
+    right: 5px; bottom: 5px;
+    font-size: 0.64rem;
+    color: var(--yellow);
+    opacity: 0.9;
+  }
+
+  .cell .cell-metrics {
+    position: absolute;
+    left: 5px; bottom: 5px;
+    font-size: 0.58rem;
+    color: var(--accent);
+    line-height: 1.05;
+    text-align: left;
+  }
+
+  .cost-legend {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    background: #11191f;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    line-height: 1.45;
+  }
+
+  #total-cost {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--yellow);
+  }
+
+  #optimal-route {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  .optimal-route-title {
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .optimal-route-step {
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .optimal-route-total {
+    margin-top: 8px;
+    color: var(--yellow);
+    font-size: 0.84rem;
+    font-weight: 700;
+  }
+
+  /* ── Right panels ── */
+  .right-col { display: flex; flex-direction: column; gap: 20px; }
+
+  #commands-list {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text);
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 4px;
+    background: #0d1418;
+    border: 1px solid var(--border);
+    padding: 8px;
+  }
+
+  #commands-list::-webkit-scrollbar { width: 4px; }
+  #commands-list::-webkit-scrollbar-track { background: var(--bg); }
+  #commands-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .cmd-item {
+    padding: 6px 9px;
+    border-left: 2px solid var(--border);
+    background: #11191f;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cmd-item.ADELANTE { border-color: var(--accent); color: var(--accent); }
+  .cmd-item.STOP     { border-color: var(--accent2); color: var(--accent2); }
+  .cmd-item.GIRAR    { border-color: var(--yellow); color: var(--yellow); }
+
+  .cmd-num {
+    color: var(--text-dim);
+    font-size: 0.6rem;
+    min-width: 20px;
+  }
+
+  #graph { grid-column: 1 / -1; }
+  #graph-svg { width: 100%; height: 760px; }
+
+  .graph-expand-btn {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    padding: 7px 12px;
+    border: 1px solid var(--accent);
+    background: #11191f;
+    color: var(--accent-hover);
+    cursor: pointer;
+    border-radius: 999px;
+    text-transform: uppercase;
+  }
+
+  .graph-expand-btn:hover { background: var(--accent); color: #061113; }
+
+  .graph-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    padding: 24px;
+    background: rgba(8, 13, 16, 0.94);
+    z-index: 1000;
+  }
+
+  .graph-modal.open { display: block; }
+
+  .graph-modal-card {
+    width: 100%;
+    height: 100%;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    padding: 18px;
+    overflow: hidden;
+  }
+
+  .graph-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .graph-zoom-controls { display: flex; gap: 8px; align-items: center; }
+  .graph-zoom-controls .graph-expand-btn { min-width: 34px; padding: 7px 10px; }
+
+  .graph-modal-viewport {
+    width: 100%;
+    height: calc(100% - 48px);
+    overflow: auto;
+  }
+
+  #graph-modal-svg { width: 100%; height: 78vh; min-width: 1100px; transform-origin: 0 0; }
+
+  @media (max-width: 980px) {
+    main { grid-template-columns: 1fr; }
+    .grid-area { grid-row: auto; }
+    #graph { min-height: auto; }
+    #graph-svg { height: 560px; }
+  }
+
+  .empty-msg {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 24px 0;
+    letter-spacing: 1px;
+  }
+
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 12px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+  }
+
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.ok   { border-color: var(--green); color: var(--green); }
+  #toast.err  { border-color: var(--red); color: var(--red); }
+  #toast.info { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CARRO<span>_</span>A* ALGORITMO DE BUSQUEDA</div>
+  <div id="status-badge">
+    <div id="status-dot"></div>
+    <span id="status-text">ESP32 DESCONECTADO</span>
+  </div>
+</header>
+
+<main>
+  <!-- ── Grid Panel ── -->
+  <div class="grid-area">
+    <div class="panel">
+      <div class="panel-title">// Cuadrícula 8×8</div>
+
+      <div class="controls-bar" style="margin-bottom:16px;">
+        <button class="mode-btn start active" data-mode="start" onclick="setMode('start',this)">▶ Inicio</button>
+        <button class="mode-btn end"   data-mode="end"   onclick="setMode('end',this)">◼ Fin</button>
+        <button class="mode-btn wall"  data-mode="wall"  onclick="setMode('wall',this)">⬛ Obstáculo</button>
+        <button class="mode-btn"       data-mode="clear" onclick="setMode('clear',this)">✕ Borrar</button>
+        <button class="action-btn btn-clear" onclick="resetGrid()">LIMPIAR TODO</button>
+        <button class="action-btn btn-example" onclick="loadExample()">EJEMPLO</button>
+        <button class="action-btn btn-solve" onclick="solve()">CALCULAR RUTA ▶</button>
+      </div>
+
+      <div class="grid-wrapper">
+        <div id="grid"></div>
+      </div>
+      <div class="cost-legend">
+        c = costo de entrar al nodo<br>
+        g = costo acumulado desde el inicio<br>
+        h = estimación hasta la meta<br>
+        f = g + h
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Column ── -->
+  <div class="right-col">
+
+    <div class="panel">
+      <div class="panel-title">// Comandos generados</div>
+      <div id="commands-list">
+        <div class="empty-msg">— SIN RUTA —</div>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="action-btn btn-send" id="btn-send" disabled onclick="sendToCar()">
+          ENVIAR AL CARRO ▶
+        </button>
+      </div>
+    </div>
+
+    <!-- Optimal Route Panel -->
+    <div class="panel" id="optimal-route-panel">
+      <div class="panel-title">// Recorrido óptimo</div>
+      <div id="optimal-route">
+        <div class="empty-msg">— SIN RUTA —</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Graph Panel Below Grid -->
+  <div class="panel" id="graph">
+    <div class="panel-header">
+      <div class="panel-title">// Grafo del recorrido</div>
+      <button class="graph-expand-btn" onclick="openGraphModal()">VER GRAFO COMPLETO</button>
+    </div>
+    <svg id="graph-svg">
+      <text x="50%" y="50%" text-anchor="middle" font-family="'Share Tech Mono'" font-size="11"
+            fill="#4a6080" letter-spacing="2">— SIN DATOS —</text>
+    </svg>
+  </div>
+</main>
+
+<div id="graph-modal" class="graph-modal" aria-hidden="true">
+  <div class="graph-modal-card">
+    <div class="graph-modal-header">
+      <div class="panel-title">// Grafo completo</div>
+      <div class="graph-zoom-controls" aria-label="Controles de zoom del grafo">
+        <button class="graph-expand-btn" onclick="zoomGraphModal(-0.2)" aria-label="Alejar grafo">−</button>
+        <button class="graph-expand-btn" onclick="zoomGraphModal(0.2)" aria-label="Acercar grafo">+</button>
+        <button class="graph-expand-btn" onclick="closeGraphModal()">CERRAR</button>
+      </div>
+    </div>
+    <div class="graph-modal-viewport">
+      <svg id="graph-modal-svg"></svg>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+const ROWS = 8, COLS = 8;
+let mode = 'start';
+let startCell = null, endCell = null;
+let walls = new Set();
+let costGrid = [];
+let currentPath = [];
+let currentCommands = [];
+let currentGraph = null;
+let graphModalZoom = 1;
+let isDragging = false;
+
+// ─── Grid Init ────────────────────────────────────────────────────────────────
+function cellNumber(r, c) {
+  return r * COLS + c + 1;
+}
+
+function randomCellCost() {
+  return Math.floor(Math.random() * 9) + 1;
+}
+
+function createCostGrid() {
+  return Array.from({length: ROWS}, () => Array.from({length: COLS}, randomCellCost));
+}
+
+function renderCellContent(r, c, metrics = null) {
+  const cost = costGrid[r]?.[c] ?? 1;
+  const metricHtml = metrics
+    ? `<span class="cell-metrics">g:${metrics.g}<br>h:${metrics.h} f:${metrics.f}</span>`
+    : '';
+  return `<span class="coord">${r},${c}</span><span class="cell-num">${cellNumber(r, c)}</span><span class="cell-cost">c:${cost}</span>${metricHtml}`;
+}
+
+function buildGrid() {
+  if (!costGrid.length) costGrid = createCostGrid();
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      cell.innerHTML = renderCellContent(r, c);
+      cell.addEventListener('mousedown', e => { isDragging = true; handleCell(r, c); e.preventDefault(); });
+      cell.addEventListener('mouseenter', () => { if (isDragging) handleCell(r, c); });
+      grid.appendChild(cell);
+    }
+  }
+  document.addEventListener('mouseup', () => isDragging = false);
+}
+
+function getCell(r, c) {
+  return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+}
+
+function handleCell(r, c) {
+  const key = `${r},${c}`;
+  const cell = getCell(r, c);
+
+  if (mode === 'start') {
+    if (startCell) getCell(...startCell).classList.remove('start');
+    startCell = [r, c];
+    walls.delete(key);
+    cell.classList.remove('wall', 'end');
+    cell.classList.add('start');
+  } else if (mode === 'end') {
+    if (endCell) getCell(...endCell).classList.remove('end');
+    endCell = [r, c];
+    walls.delete(key);
+    cell.classList.remove('wall', 'start');
+    cell.classList.add('end');
+  } else if (mode === 'wall') {
+    if (!cell.classList.contains('start') && !cell.classList.contains('end')) {
+      walls.add(key);
+      cell.classList.add('wall');
+      cell.classList.remove('path', 'explored');
+    }
+  } else if (mode === 'clear') {
+    walls.delete(key);
+    if (startCell && startCell[0]==r && startCell[1]==c) startCell = null;
+    if (endCell   && endCell[0]==r   && endCell[1]==c)   endCell   = null;
+    cell.className = 'cell';
+    cell.innerHTML = renderCellContent(r, c);
+  }
+}
+
+function setMode(m, btn) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function resetGrid() {
+  startCell = null; endCell = null;
+  walls.clear(); currentPath = []; currentCommands = [];
+  costGrid = createCostGrid();
+  buildGrid();
+  document.getElementById('commands-list').innerHTML = '<div class="empty-msg">— SIN RUTA —</div>';
+  document.getElementById('total-cost').textContent = 'Costo total: —';
+  document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="empty-msg">— SIN RUTA —</div>';
+  document.getElementById('btn-send').disabled = true;
+  clearGraph();
+}
+
+function randomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+function generateExampleScenario() {
+  const start = [randomInt(ROWS), randomInt(COLS)];
+  let end = [randomInt(ROWS), randomInt(COLS)];
+
+  while (end[0] === start[0] && end[1] === start[1]) {
+    end = [randomInt(ROWS), randomInt(COLS)];
+  }
+
+  const obstacleCount = 10 + randomInt(9);
+  const nextWalls = new Set();
+
+  while (nextWalls.size < obstacleCount) {
+    const r = randomInt(ROWS);
+    const c = randomInt(COLS);
+    const key = `${r},${c}`;
+
+    if ((r === start[0] && c === start[1]) || (r === end[0] && c === end[1])) continue;
+    nextWalls.add(key);
+  }
+
+  const grid = Array.from({length: ROWS}, (_, r) =>
+    Array.from({length: COLS}, (_, c) => nextWalls.has(`${r},${c}`) ? 1 : 0)
+  );
+  const costs = createCostGrid();
+
+  return { grid, start, end, walls: nextWalls, costs };
+}
+
+function applyScenario({ start, end, walls: nextWalls, costs }) {
+  startCell = start;
+  endCell = end;
+  walls = new Set(nextWalls);
+  costGrid = costs;
+  currentPath = [];
+  currentCommands = [];
+  buildGrid();
+
+  walls.forEach(key => {
+    const [r, c] = key.split(',').map(Number);
+    getCell(r, c).classList.add('wall');
+  });
+
+  getCell(...startCell).classList.add('start');
+  getCell(...endCell).classList.add('end');
+  document.getElementById('commands-list').innerHTML = '<div class="empty-msg">— SIN RUTA —</div>';
+  document.getElementById('btn-send').disabled = true;
+  clearGraph();
+}
+
+async function loadExample() {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const scenario = generateExampleScenario();
+    const res = await fetch('/api/solve', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ grid: scenario.grid, costs: scenario.costs, start: scenario.start, end: scenario.end })
+    });
+    const data = await res.json();
+
+    if (!data.success) continue;
+
+    applyScenario(scenario);
+
+    data.explored.forEach(([r, c]) => {
+      const cell = getCell(r, c);
+      if (!cell.classList.contains('start') && !cell.classList.contains('end'))
+        cell.classList.add('explored');
+    });
+
+    data.path.forEach(([r, c]) => {
+      const cell = getCell(r, c);
+      cell.classList.remove('explored');
+      cell.classList.add('path');
+    });
+
+    currentPath = data.path;
+    currentCommands = data.commands;
+    renderCommands(data.commands);
+    renderCostMetrics(data.graph.nodes);
+    renderOptimalRoute(data.path, data.graph.nodes, data.totalCost);
+    renderGraph(data.graph);
+    document.getElementById('btn-send').disabled = false;
+    document.getElementById('total-cost').textContent = `Costo total: ${data.totalCost}`;
+    toast(`Ejemplo cargado — ${data.path.length} celdas`, 'ok');
+    return;
+  }
+
+  toast('No se pudo generar un ejemplo con ruta', 'err');
+}
+
+// ─── Solve ────────────────────────────────────────────────────────────────────
+async function solve() {
+  if (!startCell) return toast('Marca un punto de inicio', 'err');
+  if (!endCell)   return toast('Marca un punto de fin', 'err');
+
+  // Construir matriz
+  const grid = Array.from({length: ROWS}, (_, r) =>
+    Array.from({length: COLS}, (_, c) => walls.has(`${r},${c}`) ? 1 : 0)
+  );
+
+  const res = await fetch('/api/solve', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ grid, costs: costGrid, start: startCell, end: endCell })
+  });
+
+  const data = await res.json();
+
+  if (!data.success) return toast(data.message, 'err');
+
+  // Limpiar resaltado previo
+  document.querySelectorAll('.cell.path, .cell.explored').forEach(c => {
+    c.classList.remove('path', 'explored');
+  });
+
+  // Pintar explorados
+  data.explored.forEach(([r, c]) => {
+    const cell = getCell(r, c);
+    if (!cell.classList.contains('start') && !cell.classList.contains('end'))
+      cell.classList.add('explored');
+  });
+
+  // Pintar camino
+  data.path.forEach(([r, c]) => {
+    const cell = getCell(r, c);
+    cell.classList.remove('explored');
+    cell.classList.add('path');
+  });
+
+  currentPath = data.path;
+  currentCommands = data.commands;
+
+  renderCommands(data.commands);
+  renderCostMetrics(data.graph.nodes);
+  renderOptimalRoute(data.path, data.graph.nodes, data.totalCost);
+  renderGraph(data.graph);
+  document.getElementById('btn-send').disabled = false;
+  document.getElementById('total-cost').textContent = `Costo total: ${data.totalCost}`;
+  toast(`Ruta encontrada — ${data.path.length} celdas, ${data.commands.length} comandos`, 'ok');
+}
+
+function renderCostMetrics(nodes) {
+  nodes.forEach(node => {
+    const cell = getCell(node.row, node.col);
+    if (cell) cell.innerHTML = renderCellContent(node.row, node.col, node);
+  });
+}
+
+function renderOptimalRoute(path, graphNodes, totalCost) {
+  const routeEl = document.getElementById('optimal-route');
+  const nodeByCoord = new Map(graphNodes.map(node => [`${node.row},${node.col}`, node]));
+  const steps = path.map(([row, col], index) => {
+    const node = nodeByCoord.get(`${row},${col}`);
+    const cost = index === 0 ? 0 : node.cost;
+    return `<div class="optimal-route-step">${index + 1}. Nodo ${node.number} (${row},${col}) | c:${cost} | g:${node.g} h:${node.h} f:${node.f}</div>`;
+  }).join('');
+
+  routeEl.innerHTML = `<div class="optimal-route-title">Recorrido óptimo</div>${steps}<div class="optimal-route-total">Costo total óptimo: ${totalCost}</div>`;
+}
+
+// ─── Commands ─────────────────────────────────────────────────────────────────
+function renderCommands(cmds) {
+  const el = document.getElementById('commands-list');
+  el.innerHTML = cmds.map((cmd, i) => {
+    const type = cmd.startsWith('GIRAR') ? 'GIRAR' : cmd;
+    return `<div class="cmd-item ${type}">
+      <span class="cmd-num">${String(i+1).padStart(2,'0')}</span>
+      <span>${cmd}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── Send to Car ──────────────────────────────────────────────────────────────
+async function sendToCar() {
+  if (!currentCommands.length) return;
+  const res = await fetch('/api/send', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ commands: currentCommands })
+  });
+  const data = await res.json();
+  toast(data.message, data.success ? 'ok' : 'err');
+}
+
+// ─── D3 Graph ─────────────────────────────────────────────────────────────────
+function clearGraph() {
+  const svg = document.getElementById('graph-svg');
+  svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" font-family="'Share Tech Mono'"
+    font-size="11" fill="#4a6080" letter-spacing="2">— SIN DATOS —</text>`;
+}
+
+function buildRouteTree(nodes, edges) {
+  if (!nodes.length) return null;
+
+  const nodeById = new Map(nodes.map(node => [node.id, { ...node, children: [] }]));
+  const childIds = new Set();
+
+  edges.forEach(edge => {
+    const parent = nodeById.get(edge.source);
+    const child = nodeById.get(edge.target);
+    if (!parent || !child) return;
+    child.edgeInPath = edge.inPath;
+    parent.children.push(child);
+    childIds.add(edge.target);
+  });
+
+  return [...nodeById.values()].find(node => !childIds.has(node.id)) || nodeById.values().next().value;
+}
+
+function orthogonalPath(edge, offset = 0) {
+  const source = edge.source;
+  const target = edge.target;
+  const direction = target.y >= source.y ? 1 : -1;
+  const startY = source.y + direction * offset;
+  const endY = target.y - direction * offset;
+  const midY = (startY + endY) / 2;
+  return `M${source.x},${startY}L${source.x},${midY}L${target.x},${midY}L${target.x},${endY}`;
+}
+
+function setGraphCanvasSize(svgEl, width, height) {
+  svgEl.dataset.baseWidth = width;
+  svgEl.dataset.baseHeight = height;
+  svgEl.style.width = `${width}px`;
+  svgEl.style.height = `${height}px`;
+}
+
+function renderGraphInto(svgId, { nodes, edges }, options = {}) {
+  const svgEl = document.getElementById(svgId);
+  svgEl.innerHTML = '';
+  const W = options.width || svgEl.clientWidth || 520;
+  const H = options.height || svgEl.clientHeight || 520;
+
+  const svg = d3.select(`#${svgId}`)
+    .attr('viewBox', `0 0 ${W} ${H}`);
+
+  const rootData = buildRouteTree(nodes, edges);
+  if (!rootData) return clearGraph();
+
+  const margin = options.margin || { top: 34, right: 48, bottom: 34, left: 48 };
+  const innerW = W - margin.left - margin.right;
+  const innerH = Math.max(H - margin.top - margin.bottom, nodes.length * (options.nodeGap || 120));
+  const nodeRadius = options.nodeRadius || 30;
+  const arrowGap = options.arrowGap || 12;
+  const labelSpace = options.labelSpace || 80;
+  const fullW = W;
+  const fullH = innerH + margin.top + margin.bottom + labelSpace;
+
+  svg.attr('viewBox', `0 0 ${fullW} ${fullH}`);
+  if (options.fixedCanvas) setGraphCanvasSize(svgEl, fullW, fullH);
+
+  const root = d3.hierarchy(rootData);
+  d3.tree().size([innerW, innerH])(root);
+
+  const layoutNodes = root.descendants().map(d => {
+    const treeX = d.x;
+    const treeY = d.y;
+    d.x = margin.left + treeX;
+    d.y = margin.top + treeY;
+    return d;
+  });
+  const layoutEdges = root.links();
+
+  // Defs para flecha
+  svg.append('defs').append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 8).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path')
+      .attr('d', 'M0,-4L8,0L0,4')
+      .attr('fill', '#00d4ff');
+
+  const graphLayer = svg.append('g').attr('class', 'graph-content');
+
+  // Aristas
+  graphLayer.selectAll('path.edge')
+    .data(layoutEdges)
+    .join('path')
+      .attr('class', 'edge')
+      .attr('d', edge => orthogonalPath(edge, nodeRadius + arrowGap))
+      .attr('fill', 'none')
+      .attr('stroke', '#00d4ff')
+      .attr('stroke-width', d => d.target.data.edgeInPath ? 5 : 2)
+      .attr('stroke-opacity', d => d.target.data.edgeInPath ? 0.95 : 0.22)
+      .attr('marker-end', 'url(#arrow)');
+
+  // Nodos
+  const nodeG = graphLayer.selectAll('g.node')
+    .data(layoutNodes)
+    .join('g')
+      .attr('class', 'node')
+      .attr('transform', d => `translate(${d.x},${d.y})`);
+
+  nodeG.append('circle')
+    .attr('r', nodeRadius)
+    .attr('fill', d => d.data.isStart ? 'rgba(0,255,157,0.2)' : d.data.isEnd ? 'rgba(255,107,53,0.2)' : d.data.inPath ? 'rgba(0,212,255,0.16)' : 'rgba(74,96,128,0.08)')
+    .attr('stroke', d => d.data.isStart ? '#00ff9d' : d.data.isEnd ? '#ff6b35' : d.data.inPath ? '#00d4ff' : '#4a6080')
+    .attr('stroke-width', d => d.data.inPath ? 4 : 2)
+    .attr('opacity', d => d.data.inPath ? 1 : 0.65);
+
+  nodeG.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .attr('font-family', "'Share Tech Mono'")
+    .attr('font-size', d => d.data.isStart || d.data.isEnd ? '22' : '20')
+    .attr('font-weight', '700')
+    .attr('fill', '#c8d8e8')
+    .attr('opacity', d => d.data.inPath ? 1 : 0.85)
+    .text(d => d.data.number);
+
+  nodeG.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('y', 43)
+    .attr('font-family', "'Share Tech Mono'")
+    .attr('font-size', '16')
+    .attr('font-weight', '700')
+    .attr('fill', '#ffd700')
+    .attr('opacity', d => d.data.inPath ? 1 : 0.85)
+    .text(d => `c:${d.data.cost}`);
+
+  nodeG.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('y', 59)
+    .attr('font-family', "'Share Tech Mono'")
+    .attr('font-size', '12')
+    .attr('font-weight', '700')
+    .attr('fill', '#c8d8e8')
+    .attr('opacity', d => d.data.inPath ? 1 : 0.85)
+    .text(d => `${d.data.g} / ${d.data.h} / ${d.data.f}`);
+}
+
+function renderGraph(graph) {
+  currentGraph = graph;
+  renderGraphInto('graph-svg', graph, {
+    nodeGap: 120,
+    nodeRadius: 30,
+    labelSpace: 80,
+    margin: { top: 50, right: 70, bottom: 95, left: 70 },
+  });
+}
+
+function applyGraphZoom() {
+  const svg = document.getElementById('graph-modal-svg');
+  const layer = document.querySelector('#graph-modal-svg .graph-content');
+  if (!layer) return;
+  const baseWidth = Number(svg.dataset.baseWidth || svg.clientWidth || 1100);
+  const baseHeight = Number(svg.dataset.baseHeight || svg.clientHeight || 520);
+  svg.style.width = `${baseWidth * graphModalZoom}px`;
+  svg.style.height = `${baseHeight * graphModalZoom}px`;
+  layer.setAttribute('transform', `scale(${graphModalZoom})`);
+}
+
+function zoomGraphModal(delta) {
+  graphModalZoom = Math.max(0.5, Math.min(2.2, graphModalZoom + delta));
+  applyGraphZoom();
+}
+
+function openGraphModal() {
+  if (!currentGraph) return toast('Primero calcula una ruta', 'err');
+  const modal = document.getElementById('graph-modal');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  graphModalZoom = 1;
+  renderGraphInto('graph-modal-svg', currentGraph, {
+    nodeGap: 130,
+    nodeRadius: 42,
+    fixedCanvas: true,
+    margin: { top: 70, right: 100, bottom: 90, left: 100 },
+  });
+  applyGraphZoom();
+}
+
+function closeGraphModal() {
+  const modal = document.getElementById('graph-modal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// ─── ESP32 Status ─────────────────────────────────────────────────────────────
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    if (data.esp32_connected) {
+      dot.classList.add('connected');
+      txt.textContent = 'ESP32 CONECTADO';
+    } else {
+      dot.classList.remove('connected');
+      txt.textContent = 'ESP32 DESCONECTADO';
+    }
+  } catch {}
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 3000);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildGrid();
+setInterval(checkStatus, 3000);
+checkStatus();
+</script>
+</body>
+</html>
