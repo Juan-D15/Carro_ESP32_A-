@@ -57,5 +57,7 @@ node_modules/
 /static/css/output.css
 /webAMG/static/dist/
 
+AGENTS.md
+docs/
 .agents/
 skills-lock.json
