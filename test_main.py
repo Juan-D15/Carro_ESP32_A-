@@ -386,6 +386,18 @@ class AppTests(unittest.TestCase):
         self.assertIn(".cell.end.path { background: rgba(228,113,40,0.18); border: 2px solid var(--accent2); }", html)
         self.assertIn(".cell.start.path::before, .cell.end.path::before { display: none; }", html)
 
+    def test_readme_documents_project_setup_and_esp32_flow(self):
+        readme = (main.BASE_DIR / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("# CarroESP IA Web", readme)
+        self.assertIn("FastAPI", readme)
+        self.assertIn("A*", readme)
+        self.assertIn("WebSocket", readme)
+        self.assertIn(".venv\\Scripts\\python.exe main.py", readme)
+        self.assertIn(".venv\\Scripts\\python.exe -m unittest test_main -v", readme)
+        self.assertIn("192.168.4.2:8000/ws/car", readme)
+        self.assertIn("ADELANTE", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
