@@ -27,8 +27,8 @@ const float GYRO_SCALE = 131.0;
 WebSocketsClient webSocket;
 bool wsConnected = false;
 bool gyroAvailable = false;
-float currentHeading = 0.0;
-int logicalHeading = 0;
+float heading = 0.0;       // heading continuo 0-360° (0=NORTE, 90=ESTE, 180=SUR, 270=OESTE)
+int logicalHeading = 0;    // 0=NORTE, 1=ESTE, 2=SUR, 3=OESTE
 
 // ========== MPU6050 ==========
 void initGyro() {
@@ -91,8 +91,12 @@ void steerRight() {
   analogWrite(ENB, 180);
 }
 
-void centerSteering() {
-  digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
+void centerSteering(bool fromRight) {
+  if (fromRight) {
+    digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+  } else {
+    digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
+  }
   analogWrite(ENB, 150);
   delay(100);
   stopMotors();
@@ -107,95 +111,93 @@ int getLogicalHeading(const String& dir) {
   return -1;
 }
 
+int headingToDir(float h) {
+  int dir = round(h / 90.0);
+  while (dir < 0) dir += 4;
+  while (dir >= 4) dir -= 4;
+  return dir;
+}
+
 void executeGirar(const String& direction) {
   int targetDir = getLogicalHeading(direction);
   if (targetDir < 0) return;
 
-  int diff = targetDir - logicalHeading;
-  if (diff < 0) diff += 4;
+  float targetAngle = targetDir * 90.0;
+  float diff = targetAngle - heading;
+  while (diff > 180)  diff -= 360;
+  while (diff < -180) diff += 360;
 
-  if (diff == 1 || diff == 3) {
-    bool turnLeft = (diff == 1);
-    float angleTurned = 0;
-    unsigned long lastRead = millis();
+  if (fabs(diff) < 2.0) {
+    logicalHeading = targetDir;
+    return;
+  }
 
-    if (gyroAvailable) {
-      currentHeading = 0;
-    }
+  bool turnLeft = (diff > 0);
+  float targetTurn = fabs(diff);
+  float angleTurned = 0;
+  unsigned long lastRead = millis();
 
-    if (turnLeft) {
-      digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
-      analogWrite(ENA, 180);
-      digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
-      analogWrite(ENB, 160);
-    } else {
-      digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
-      analogWrite(ENA, 180);
-      digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
-      analogWrite(ENB, 160);
-    }
-
-    if (gyroAvailable) {
-      unsigned long startWait = millis();
-      while (angleTurned < 85 && millis() - startWait < 1000) {
-        float gyroZ;
-        if (readGyro(gyroZ)) {
-          unsigned long dt = millis() - lastRead;
-          angleTurned += abs(gyroZ) * (dt / 1000.0);
-          lastRead = millis();
-        }
-        delay(5);
-      }
-    } else {
-      delay(GIRAR_DURATION);
-    }
-
-    stopMotors();
-    delay(50);
-    moveForward();
-    delay(200);
-    stopMotors();
-    delay(100);
-    centerSteering();
-
-  } else if (diff == 2) {
-    float angleTurned = 0;
-    unsigned long lastRead = millis();
-
-    if (gyroAvailable) {
-      currentHeading = 0;
-    }
-
+  if (turnLeft) {
+    digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+    analogWrite(ENA, 180);
+    digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+    analogWrite(ENB, 160);
+  } else {
     digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
     analogWrite(ENA, 180);
     digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
     analogWrite(ENB, 160);
-
-    if (gyroAvailable) {
-      unsigned long startWait = millis();
-      while (angleTurned < 170 && millis() - startWait < 2000) {
-        float gyroZ;
-        if (readGyro(gyroZ)) {
-          unsigned long dt = millis() - lastRead;
-          angleTurned += abs(gyroZ) * (dt / 1000.0);
-          lastRead = millis();
-        }
-        delay(5);
-      }
-    } else {
-      delay(GIRAR_DURATION * 2);
-    }
-
-    stopMotors();
-    delay(50);
-    moveForward();
-    delay(250);
-    stopMotors();
-    delay(100);
-    centerSteering();
   }
 
-  logicalHeading = targetDir;
+  if (gyroAvailable) {
+    unsigned long startWait = millis();
+    unsigned long timeout = (targetTurn > 100) ? 2000 : 1000;
+    while (angleTurned < targetTurn && millis() - startWait < timeout) {
+      float gyroZ;
+      if (readGyro(gyroZ)) {
+        unsigned long dt = millis() - lastRead;
+        angleTurned += fabs(gyroZ) * (dt / 1000.0);
+        lastRead = millis();
+      }
+      delay(5);
+    }
+  } else {
+    delay((targetTurn > 100) ? GIRAR_DURATION * 2 : GIRAR_DURATION);
+  }
+
+  stopMotors();
+  delay(50);
+
+  heading += turnLeft ? angleTurned : -angleTurned;
+  while (heading < 0)   heading += 360;
+  while (heading >= 360) heading -= 360;
+
+  if (gyroAvailable) {
+    float error = targetAngle - heading;
+    while (error > 180)  error -= 360;
+    while (error < -180) error += 360;
+
+    if (fabs(error) > 8.0) {
+      bool correctLeft = (error > 0);
+      if (correctLeft) {
+        digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+      } else {
+        digitalWrite(IN3, LOW); digitalWrite(IN4, HIGH);
+      }
+      analogWrite(ENB, 150);
+      delay(fabs(error) * 5);
+      stopMotors();
+      delay(60);
+    }
+  }
+
+  logicalHeading = headingToDir(heading);
+
+  moveForward();
+  delay(200);
+  stopMotors();
+  delay(100);
+  centerSteering(!turnLeft);
 }
 
 void executeCommand(const String& cmd) {
