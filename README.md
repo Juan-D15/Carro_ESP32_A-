@@ -9,14 +9,14 @@
 ![ESP32](https://img.shields.io/badge/ESP32-000000?style=for-the-badge&logo=espressif&logoColor=white)
 ![WebSocket](https://img.shields.io/badge/WebSocket-35495E?style=for-the-badge&logo=socketdotio&logoColor=white)
 
-Interfaz web para controlar un carro robótico mediante el algoritmo **A\***, permitiendo calcular rutas sobre una cuadrícula interactiva y enviar comandos a un **ESP32** por medio de **WebSocket**.
+Interfaz web para controlar un carro robótico mediante el algoritmo `A*`, permitiendo calcular rutas sobre una cuadrícula interactiva y enviar comandos a un **ESP32** por medio de **WebSocket**.
 
 ---
 
 ## Características
 
 - **Cuadrícula 8x8** interactiva con celdas de costo aleatorio.
-- **Algoritmo A\*** con costos ponderados y heurística Manhattan.
+- **Algoritmo `A*`** con costos ponderados y heurística Manhattan.
 - **Visualización del grafo** del árbol de búsqueda usando D3.js.
 - **Envío de comandos al ESP32** por WebSocket.
 - Comandos soportados: `ADELANTE`, `ATRAS`, `STOP`, `GIRAR_*`.
@@ -178,7 +178,7 @@ Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
 
 ## Cobertura de Pruebas
 
-- El algoritmo A\* encuentra la ruta óptima en una grilla con obstáculos.
+- El algoritmo A* encuentra la ruta óptima en una grilla con obstáculos.
 - El frontend renderiza correctamente la cuadrícula, costos y grafo D3.
 - Los botones y paneles mantienen la estructura esperada.
 - El estilo tipo Arduino IDE se aplica correctamente.
@@ -224,4 +224,4 @@ Este proyecto está bajo la licencia **MIT**.
 
 ---
 
-Desarrollado como proyecto académico para el control de un carro robótico con **ESP32**, **WebSocket** y algoritmo **A\***.
+Desarrollado como proyecto académico para el control de un carro robótico con **ESP32**, **WebSocket** y algoritmo `A*`.
