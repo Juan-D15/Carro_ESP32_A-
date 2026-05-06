@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Modulo Seguidor de Linea</title>
+<script src="/static/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #11191f;
+    --surface: #182226;
+    --surface2: #1f2d33;
+    --border: #3a4a50;
+    --accent: #00a6a6;
+    --accent-hover: #12c7c7;
+    --accent2: #e47128;
+    --green: #00b8a9;
+    --red: #e05a47;
+    --yellow: #f2c94c;
+    --text: #d8e2e6;
+    --text-dim: #8fa1a8;
+    --mono: 'Consolas', 'Courier New', monospace;
+    --body: 'Segoe UI', Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 0%, rgba(0,166,166,0.12), transparent 34%), var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: linear-gradient(90deg, rgba(0,166,166,0.05), transparent 32%, rgba(0,0,0,0.12));
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #10181c;
+  }
+
+  .logo {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  nav { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  nav a {
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 12px;
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+  }
+
+  nav a.active, nav a:hover { color: #061113; background: var(--accent); border-color: var(--accent); }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(680px, 1fr) minmax(320px, 420px);
+    gap: 18px;
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 18px;
+  }
+
+  .panel {
+    background: rgba(24,34,38,0.96);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 18px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .panel-title {
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .graph-panel { min-height: 640px; }
+  .tree-panel { grid-column: 1 / -1; min-height: 520px; }
+
+  .controls {
+    display: grid;
+    gap: 12px;
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+
+  label {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  select, button {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #11191f;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 10px 14px;
+  }
+
+  button {
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent-hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #061113; }
+  button.primary:hover { background: var(--accent-hover); }
+  button.green { background: var(--green); border-color: var(--green); color: #061113; }
+  button.green:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mode-btn.active.start { background: var(--green); border-color: var(--green); color: #061113; }
+  .mode-btn.active.end { background: var(--accent2); border-color: var(--accent2); color: #061113; }
+
+  .summary {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .summary strong { color: var(--text); }
+
+  #optimal-route {
+    display: grid;
+    gap: 5px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 10px;
+  }
+
+  .optimal-route-title { color: var(--accent); font-weight: 700; }
+  .optimal-route-step { color: var(--text-dim); }
+  .optimal-route-total { color: var(--yellow); font-weight: 700; }
+
+  .command-list {
+    display: grid;
+    gap: 6px;
+    max-height: 240px;
+    overflow: auto;
+  }
+
+  .command {
+    border: 1px solid var(--border);
+    background: #10181c;
+    border-radius: 2px;
+    padding: 7px 9px;
+    color: var(--text);
+  }
+
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); }
+  .dot.start { background: var(--green); border-color: var(--green); }
+  .dot.end { background: var(--accent2); border-color: var(--accent2); }
+  .dot.path { background: var(--yellow); border-color: var(--yellow); }
+
+  svg { width: 100%; height: 100%; display: block; }
+  #line-graph-svg { height: 540px; min-height: 540px; background: #10181c; border: 1px solid var(--border); margin-top: 14px; }
+  #search-tree-svg { height: 520px; min-height: 520px; background: #10181c; border: 1px solid var(--border); }
+
+  .edge { stroke: #65777f; stroke-width: 4; fill: none; }
+  .edge.path { stroke: var(--yellow); stroke-width: 7; filter: drop-shadow(0 0 4px rgba(242,201,76,0.55)); }
+
+  .node circle { fill: var(--surface2); stroke: var(--border); stroke-width: 3; cursor: pointer; }
+  .node:hover circle { stroke: var(--accent-hover); }
+  .node.start circle { fill: rgba(0,184,169,0.25); stroke: var(--green); }
+  .node.end circle { fill: rgba(228,113,40,0.28); stroke: var(--accent2); }
+  .node.path circle { stroke: var(--yellow); stroke-width: 5; }
+  .node text { fill: var(--text); font-family: var(--mono); font-weight: 700; pointer-events: none; }
+  .node .metric { fill: var(--text-dim); font-size: 11px; font-weight: 400; }
+  .node .node-cost { fill: var(--yellow); font-size: 12px; font-weight: 700; }
+  .fallback-edge { stroke: #65777f; stroke-width: 4; }
+  .fallback-node circle { fill: #1f2d33; stroke: #3a4a50; stroke-width: 3; }
+  .fallback-node[data-kind="start"] circle { fill: rgba(0,184,169,0.25); stroke: var(--green); }
+  .fallback-node[data-kind="end"] circle { fill: rgba(228,113,40,0.28); stroke: var(--accent2); }
+  .fallback-node text { fill: var(--text); font-family: var(--mono); font-weight: 700; text-anchor: middle; }
+  .fallback-node .fallback-cost { fill: var(--yellow); font-size: 12px; }
+
+  .tree-edge { stroke: #65777f; stroke-width: 2; fill: none; }
+  .tree-edge.path { stroke: var(--yellow); stroke-width: 4; }
+  .tree-node circle { fill: var(--surface2); stroke: var(--border); stroke-width: 2; }
+  .tree-node.path circle { stroke: var(--yellow); stroke-width: 4; }
+  .tree-node.start circle { stroke: var(--green); }
+  .tree-node.end circle { stroke: var(--accent2); }
+  .tree-node text { fill: var(--text); font-family: var(--mono); text-anchor: middle; }
+  .tree-node .small { fill: var(--text-dim); font-size: 11px; }
+
+  .hint {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; }
+    .tree-panel { grid-column: auto; }
+  }
+
+  @media (max-width: 680px) {
+    header { align-items: flex-start; flex-direction: column; }
+    main { padding: 10px; }
+    .panel { padding: 12px; }
+    #line-graph-svg { min-height: 420px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">CarroESP <span>IA</span> / Linea</div>
+  <nav>
+    <a href="/">Cuadricula</a>
+    <a href="/linea" class="active">Grafo Fisico</a>
+  </nav>
+</header>
+
+<main>
+  <section class="panel graph-panel">
+    <div class="panel-title">Grafo fisico fijo</div>
+    <div class="legend">
+      <span><i class="dot start"></i>Inicio</span>
+      <span><i class="dot end"></i>Fin</span>
+      <span><i class="dot path"></i>Ruta A*</span>
+      <span><i class="dot"></i>Nodo disponible</span>
+    </div>
+    <svg id="line-graph-svg" viewBox="0 0 900 560" role="img" aria-label="Grafo fijo de 10 nodos para seguidor de linea">
+      <g id="line-graph-fallback">
+        <line class="fallback-edge" x1="100" y1="280" x2="230" y2="280"/>
+        <line class="fallback-edge" x1="230" y1="280" x2="370" y2="280"/>
+        <line class="fallback-edge" x1="370" y1="280" x2="510" y2="280"/>
+        <line class="fallback-edge" x1="510" y1="280" x2="650" y2="280"/>
+        <line class="fallback-edge" x1="230" y1="280" x2="230" y2="120"/>
+        <line class="fallback-edge" x1="510" y1="280" x2="510" y2="120"/>
+        <line class="fallback-edge" x1="510" y1="280" x2="510" y2="440"/>
+        <line class="fallback-edge" x1="650" y1="280" x2="650" y2="440"/>
+        <line class="fallback-edge" x1="510" y1="440" x2="650" y2="440"/>
+        <line class="fallback-edge" x1="650" y1="440" x2="790" y2="440"/>
+        <g class="fallback-node" data-kind="start" transform="translate(100,280)"><circle r="34"/><text y="4">A</text><text class="fallback-cost" y="54">A c:6</text></g>
+        <g class="fallback-node" transform="translate(230,280)"><circle r="34"/><text y="4">B</text><text class="fallback-cost" y="54">B c:14</text></g>
+        <g class="fallback-node" transform="translate(370,280)"><circle r="34"/><text y="4">C</text><text class="fallback-cost" y="54">C c:3</text></g>
+        <g class="fallback-node" transform="translate(510,280)"><circle r="34"/><text y="4">D</text><text class="fallback-cost" y="54">D c:11</text></g>
+        <g class="fallback-node" transform="translate(650,280)"><circle r="34"/><text y="4">E</text><text class="fallback-cost" y="54">E c:18</text></g>
+        <g class="fallback-node" transform="translate(230,120)"><circle r="34"/><text y="4">F</text><text class="fallback-cost" y="54">F c:7</text></g>
+        <g class="fallback-node" transform="translate(510,120)"><circle r="34"/><text y="4">G</text><text class="fallback-cost" y="54">G c:20</text></g>
+        <g class="fallback-node" transform="translate(510,440)"><circle r="34"/><text y="4">H</text><text class="fallback-cost" y="54">H c:2</text></g>
+        <g class="fallback-node" transform="translate(650,440)"><circle r="34"/><text y="4">I</text><text class="fallback-cost" y="54">I c:16</text></g>
+        <g class="fallback-node" data-kind="end" transform="translate(790,440)"><circle r="34"/><text y="4">J</text><text class="fallback-cost" y="54">J c:9</text></g>
+      </g>
+    </svg>
+  </section>
+
+  <aside class="panel">
+    <div class="panel-title">Control del recorrido</div>
+    <div class="controls">
+      <div class="mode-row">
+        <button class="mode-btn active start" id="start-mode" onclick="setSelectionMode('start')">Marcar inicio</button>
+        <button class="mode-btn end" id="end-mode" onclick="setSelectionMode('end')">Marcar fin</button>
+      </div>
+
+      <div class="field">
+        <label for="start-select">Nodo inicio</label>
+        <select id="start-select" onchange="selectEndpoint('start', this.value)"></select>
+      </div>
+
+      <div class="field">
+        <label for="end-select">Nodo fin</label>
+        <select id="end-select" onchange="selectEndpoint('end', this.value)"></select>
+      </div>
+
+      <button class="primary" onclick="solveLineGraph()">Calcular ruta A*</button>
+      <button class="green" id="send-btn" onclick="sendLineCommands()" disabled>Enviar al carro</button>
+
+      <p class="hint">Usa los botones para elegir si el click sobre un nodo marca inicio o fin. Los costes del grafo son fijos para que puedas replicarlo fisicamente.</p>
+
+      <div class="summary">
+        <div><strong>Ruta:</strong> <span id="route-output">Sin calcular</span></div>
+        <div><strong>Costo total:</strong> <span id="cost-output">-</span></div>
+        <div><strong>Estado:</strong> <span id="status-output">Selecciona inicio y fin</span></div>
+        <div id="optimal-route"><div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div></div>
+        <div>
+          <strong>Comandos:</strong>
+          <div class="command-list" id="commands-output"></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="panel tree-panel">
+    <div class="panel-title">Árbol de recorrido</div>
+    <svg id="search-tree-svg" viewBox="0 0 1200 520" role="img" aria-label="Arbol generado por el algoritmo A estrella"></svg>
+  </section>
+</main>
+
+<script>
+const lineGraph = {
+  nodes: [
+    { id: 'A', label: 'A', x: 100, y: 280, cost: 6 },
+    { id: 'B', label: 'B', x: 230, y: 280, cost: 14 },
+    { id: 'C', label: 'C', x: 370, y: 280, cost: 3 },
+    { id: 'D', label: 'D', x: 510, y: 280, cost: 11 },
+    { id: 'E', label: 'E', x: 650, y: 280, cost: 18 },
+    { id: 'F', label: 'F', x: 230, y: 120, cost: 7 },
+    { id: 'G', label: 'G', x: 510, y: 120, cost: 20 },
+    { id: 'H', label: 'H', x: 510, y: 440, cost: 2 },
+    { id: 'I', label: 'I', x: 650, y: 440, cost: 16 },
+    { id: 'J', label: 'J', x: 790, y: 440, cost: 9 },
+  ],
+  edges: [
+    { source: 'A', target: 'B' },
+    { source: 'B', target: 'C' },
+    { source: 'C', target: 'D' },
+    { source: 'D', target: 'E' },
+    { source: 'B', target: 'F' },
+    { source: 'D', target: 'G' },
+    { source: 'D', target: 'H' },
+    { source: 'E', target: 'I' },
+    { source: 'H', target: 'I' },
+    { source: 'I', target: 'J' },
+  ],
+};
+
+const nodesById = new Map(lineGraph.nodes.map(node => [node.id, node]));
+const adjacency = buildAdjacency(lineGraph);
+let selectionMode = 'start';
+let startNode = 'A';
+let endNode = 'J';
+let currentPath = [];
+let currentCommands = [];
+let currentTree = null;
+
+function buildAdjacency(graph) {
+  const map = new Map(graph.nodes.map(node => [node.id, []]));
+  graph.edges.forEach(edge => {
+    map.get(edge.source).push({ id: edge.target });
+    map.get(edge.target).push({ id: edge.source });
+  });
+  return map;
+}
+
+function populateSelectors() {
+  ['start-select', 'end-select'].forEach(selectId => {
+    const select = document.getElementById(selectId);
+    select.innerHTML = lineGraph.nodes.map(node => `<option value="${node.id}">${node.label}</option>`).join('');
+  });
+  document.getElementById('start-select').value = startNode;
+  document.getElementById('end-select').value = endNode;
+}
+
+function setSelectionMode(mode) {
+  selectionMode = mode;
+  document.getElementById('start-mode').classList.toggle('active', mode === 'start');
+  document.getElementById('end-mode').classList.toggle('active', mode === 'end');
+}
+
+function selectEndpoint(type, nodeId) {
+  if (type === 'start') {
+    startNode = nodeId;
+    if (startNode === endNode) endNode = nextDifferentNode(startNode);
+  } else {
+    endNode = nodeId;
+    if (endNode === startNode) startNode = nextDifferentNode(endNode);
+  }
+
+  document.getElementById('start-select').value = startNode;
+  document.getElementById('end-select').value = endNode;
+  currentPath = [];
+  currentCommands = [];
+  currentTree = null;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('route-output').textContent = 'Sin calcular';
+  document.getElementById('cost-output').textContent = '-';
+  document.getElementById('commands-output').innerHTML = '';
+  document.getElementById('status-output').textContent = 'Listo para calcular';
+  document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
+  renderLineGraph();
+  renderSearchTree(null);
+}
+
+function nextDifferentNode(nodeId) {
+  return lineGraph.nodes.find(node => node.id !== nodeId).id;
+}
+
+const minCostTo = (() => {
+  const costs = {};
+  lineGraph.nodes.forEach(node => {
+    costs[node.id] = dijkstraMinCostToAll(node.id);
+  });
+  return costs;
+})();
+
+function dijkstraMinCostToAll(startId) {
+  const dist = new Map();
+  const pq = new Set();
+  lineGraph.nodes.forEach(n => { dist.set(n.id, Infinity); pq.add(n.id); });
+  dist.set(startId, 0);
+
+  while (pq.size > 0) {
+    let minNode = null, minDist = Infinity;
+    pq.forEach(id => { if (dist.get(id) < minDist) { minDist = dist.get(id); minNode = id; } });
+    if (minNode === null || minDist === Infinity) break;
+    pq.delete(minNode);
+
+    adjacency.get(minNode).forEach(neighbor => {
+      if (!pq.has(neighbor.id)) return;
+      const alt = dist.get(minNode) + nodesById.get(neighbor.id).cost;
+      if (alt < dist.get(neighbor.id)) dist.set(neighbor.id, alt);
+    });
+  }
+  return dist;
+}
+
+function graphHeuristic(fromId, toId) {
+  return minCostTo[toId].get(fromId) || 0;
+}
+
+function astarGraph(startId, endId) {
+  const open = [{ id: startId, g: 0, h: graphHeuristic(startId, endId), f: graphHeuristic(startId, endId) }];
+  const cameFrom = new Map();
+  const gScore = new Map([[startId, 0]]);
+  const details = new Map([[startId, { id: startId, parent: null, cost: nodesById.get(startId).cost, g: 0, h: graphHeuristic(startId, endId), f: graphHeuristic(startId, endId), inPath: false }]]);
+  const explored = [];
+  const closed = new Set();
+
+  while (open.length > 0) {
+    open.sort((a, b) => a.f - b.f || a.h - b.h || a.id.localeCompare(b.id));
+    const current = open.shift();
+    if (closed.has(current.id)) continue;
+
+    if (current.id === endId) {
+      const path = reconstructPath(cameFrom, current.id);
+  path.forEach(nodeId => {
+    const detail = details.get(nodeId);
+    if (detail) detail.inPath = true;
+  });
+      return { path, totalCost: gScore.get(endId), explored, tree: buildSearchTree(details, startId, path) };
+    }
+
+    closed.add(current.id);
+    explored.push(current.id);
+
+    adjacency.get(current.id).forEach(neighbor => {
+      if (closed.has(neighbor.id)) return;
+      const tentativeG = gScore.get(current.id) + nodesById.get(neighbor.id).cost;
+      if (tentativeG < (gScore.get(neighbor.id) ?? Infinity)) {
+        const h = graphHeuristic(neighbor.id, endId);
+        const f = Number((tentativeG + h).toFixed(2));
+        cameFrom.set(neighbor.id, current.id);
+        gScore.set(neighbor.id, tentativeG);
+        details.set(neighbor.id, { id: neighbor.id, parent: current.id, cost: nodesById.get(neighbor.id).cost, g: tentativeG, h, f, inPath: false });
+        open.push({ id: neighbor.id, g: tentativeG, h, f });
+      }
+    });
+  }
+
+  return { path: [], totalCost: null, explored, tree: buildSearchTree(details, startId, []) };
+}
+
+function reconstructPath(cameFrom, currentId) {
+  const path = [currentId];
+  while (cameFrom.has(currentId)) {
+    currentId = cameFrom.get(currentId);
+    path.push(currentId);
+  }
+  return path.reverse();
+}
+
+function buildSearchTree(details, startId, path) {
+  const pathEdges = new Set(path.slice(1).map((nodeId, index) => `${path[index]}-${nodeId}`));
+  const items = Array.from(details.values()).map(detail => ({ ...detail, children: [], edgeInPath: false }));
+  const byId = new Map(items.map(item => [item.id, item]));
+
+  items.forEach(item => {
+    if (!item.parent) return;
+    item.edgeInPath = pathEdges.has(`${item.parent}-${item.id}`) || pathEdges.has(`${item.id}-${item.parent}`);
+    byId.get(item.parent).children.push(item);
+  });
+
+  items.forEach(item => item.children.sort((a, b) => a.id.localeCompare(b.id)));
+  return byId.get(startId);
+}
+
+function pathToCommands(path) {
+  if (path.length < 2) return [];
+  const commands = [];
+  for (let i = 1; i < path.length; i++) {
+    const previous = nodesById.get(path[i - 1]);
+    const current = nodesById.get(path[i]);
+    const dx = current.x - previous.x;
+    const dy = current.y - previous.y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      commands.push(dx > 0 ? 'GIRAR_ESTE' : 'GIRAR_OESTE');
+    } else {
+      commands.push(dy > 0 ? 'GIRAR_SUR' : 'GIRAR_NORTE');
+    }
+    commands.push('ADELANTE');
+  }
+  commands.push('STOP');
+  return commands;
+}
+
+function solveLineGraph() {
+  if (startNode === endNode) {
+    document.getElementById('status-output').textContent = 'Inicio y fin deben ser diferentes';
+    return;
+  }
+
+  const result = astarGraph(startNode, endNode);
+  currentPath = result.path;
+  currentTree = result.tree;
+  currentCommands = pathToCommands(result.path);
+
+  document.getElementById('route-output').textContent = result.path.length ? result.path.join(' -> ') : 'Sin ruta';
+  document.getElementById('cost-output').textContent = result.totalCost ?? '-';
+  document.getElementById('status-output').textContent = result.path.length ? `A* exploro ${result.explored.length} nodos` : 'No existe ruta';
+  document.getElementById('commands-output').innerHTML = currentCommands.map((command, index) => `<div class="command">${index + 1}. ${command}</div>`).join('');
+  document.getElementById('send-btn').disabled = currentCommands.length === 0;
+  renderOptimalRoute(result);
+  renderLineGraph();
+  renderSearchTree(result.tree);
+}
+
+function renderOptimalRoute(result) {
+  const routeEl = document.getElementById('optimal-route');
+  if (!result.path.length) {
+    routeEl.innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin ruta</div>';
+    return;
+  }
+
+  const steps = result.path.map((nodeId, index) => {
+    const node = nodesById.get(nodeId);
+    const detail = findTreeNode(result.tree, nodeId) || { cost: node.cost, g: 0, h: 0, f: 0 };
+    const enteredCost = index === 0 ? 0 : detail.cost;
+    return `<div class="optimal-route-step">${index + 1}. Nodo ${node.id} | c:${enteredCost} | g:${detail.g} h:${detail.h} f:${detail.f}</div>`;
+  }).join('');
+
+  routeEl.innerHTML = `<div class="optimal-route-title">Recorrido óptimo</div>${steps}<div class="optimal-route-total">Costo total óptimo: ${result.totalCost}</div>`;
+}
+
+function sendLineCommands() {
+  if (!currentCommands.length) return;
+  document.getElementById('status-output').textContent = 'Enviando comandos...';
+  fetch('/api/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commands: currentCommands, start: startNode, end: endNode, path: currentPath }),
+  })
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('status-output').textContent = data.message || (data.success ? 'Comandos enviados' : 'ESP32 no conectado');
+    })
+    .catch(() => {
+      document.getElementById('status-output').textContent = 'No se pudo enviar al servidor';
+    });
+}
+
+function renderLineGraph() {
+  const graphSvg = document.getElementById('line-graph-svg');
+  graphSvg.setAttribute('viewBox', '0 0 900 560');
+  const pathEdges = new Set(currentPath.slice(1).map((nodeId, index) => edgeKey(currentPath[index], nodeId)));
+
+  const edgesMarkup = lineGraph.edges.map(edge => {
+    const source = nodesById.get(edge.source);
+    const target = nodesById.get(edge.target);
+    const edgeClass = `edge ${pathEdges.has(edgeKey(edge.source, edge.target)) ? 'path' : ''}`;
+    return `<line class="${edgeClass}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"/>`;
+  }).join('');
+
+  const nodesMarkup = lineGraph.nodes.map(node => {
+    const detail = currentTree ? findTreeNode(currentTree, node.id) : null;
+    const nodeClass = [
+      'node',
+      'line-graph-node',
+      node.id === startNode ? 'start' : '',
+      node.id === endNode ? 'end' : '',
+      currentPath.includes(node.id) ? 'path' : '',
+    ].join(' ');
+    const metrics = detail ? `<text class="metric" text-anchor="middle" y="68">g:${detail.g} h:${detail.h} f:${detail.f}</text>` : '';
+    return `<g class="${nodeClass}" transform="translate(${node.x},${node.y})" onclick="selectEndpoint(selectionMode, '${node.id}')">
+      <circle r="34"></circle>
+      <text text-anchor="middle" dominant-baseline="middle" font-size="24">${node.label}</text>
+      <text class="node-cost" text-anchor="middle" y="52">c:${node.cost}</text>
+      ${metrics}
+    </g>`;
+  }).join('');
+
+  graphSvg.innerHTML = edgesMarkup + nodesMarkup;
+}
+
+function renderSearchTree(tree) {
+  const treeSvg = document.getElementById('search-tree-svg');
+  const treeWidth = 1200;
+  const treeHeight = 520;
+
+  if (!tree) {
+    treeSvg.setAttribute('viewBox', `0 0 ${treeWidth} ${treeHeight}`);
+    treeSvg.style.height = `${treeHeight}px`;
+    treeSvg.innerHTML = `<text x="${treeWidth / 2}" y="${treeHeight / 2}" text-anchor="middle" fill="#8fa1a8" font-family="Consolas, Courier New, monospace">Calcula una ruta para generar el árbol de mejores padres</text>`;
+    return;
+  }
+
+  const flatNodes = flattenSearchTree(tree);
+  const levels = new Map();
+  flatNodes.forEach(item => {
+    if (!levels.has(item.depth)) levels.set(item.depth, []);
+    levels.get(item.depth).push(item);
+  });
+
+  const maxDepth = Math.max(...flatNodes.map(item => item.depth));
+  const renderedTreeHeight = Math.max(treeHeight, 140 + maxDepth * 105);
+  treeSvg.setAttribute('viewBox', `0 0 ${treeWidth} ${renderedTreeHeight}`);
+  treeSvg.style.height = `${renderedTreeHeight}px`;
+
+  levels.forEach(items => items.sort((a, b) => a.data.id.localeCompare(b.data.id)));
+  const positioned = new Map();
+  levels.forEach((items, depth) => {
+    items.forEach((item, index) => {
+      item.x = ((index + 1) * treeWidth) / (items.length + 1);
+      item.y = 70 + depth * 105;
+      positioned.set(item.data.id, item);
+    });
+  });
+
+  const edges = flatNodes.filter(item => item.data.parent).map(item => {
+    const parent = positioned.get(item.data.parent);
+    const midY = (parent.y + item.y) / 2;
+    const edgeClass = `tree-edge ${item.data.edgeInPath ? 'path' : ''}`;
+    return `<path class="${edgeClass}" d="M${parent.x},${parent.y + 30} V${midY} H${item.x} V${item.y - 30}"/>`;
+  }).join('');
+
+  const nodes = flatNodes.map(item => {
+    const nodeClass = [
+      'tree-node',
+      item.data.inPath ? 'path' : '',
+      item.data.id === startNode ? 'start' : '',
+      item.data.id === endNode ? 'end' : '',
+    ].join(' ');
+    return `<g class="${nodeClass}" transform="translate(${item.x},${item.y})">
+      <circle r="30"></circle>
+      <text y="-4" font-size="16" font-weight="700">${item.data.id}</text>
+      <text class="small" y="14">g${item.data.g} h${item.data.h} f${item.data.f}</text>
+    </g>`;
+  }).join('');
+
+  treeSvg.innerHTML = edges + nodes;
+}
+
+function flattenSearchTree(node, depth = 0, items = []) {
+  items.push({ data: node, depth });
+  (node.children || []).forEach(child => flattenSearchTree(child, depth + 1, items));
+  return items;
+}
+
+function findTreeNode(tree, id) {
+  if (tree.id === id) return tree;
+  for (const child of tree.children || []) {
+    const found = findTreeNode(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function edgeKey(a, b) {
+  return [a, b].sort().join('-');
+}
+
+populateSelectors();
+setSelectionMode('start');
+renderLineGraph();
+renderSearchTree(null);
+</script>
+</body>
+</html>
