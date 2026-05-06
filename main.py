@@ -173,6 +173,10 @@ def path_to_commands(path: list) -> list[str]:
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html")
 
+@app.get("/linea", response_class=HTMLResponse)
+async def linea(request: Request):
+    return templates.TemplateResponse(request, "linea.html")
+
 @app.post("/api/solve")
 async def solve(data: GridRequest):
     validation_error = validate_grid_request(data.grid, data.start, data.end)

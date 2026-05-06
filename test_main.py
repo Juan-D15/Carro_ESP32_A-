@@ -18,7 +18,7 @@ class AppTests(unittest.TestCase):
 
     def test_solve_returns_astar_path_and_commands(self):
         payload = {
-            "grid": [[0 for _ in range(8)] for _ in range(8)],
+            "grid": [[0 for _ in range(5)] for _ in range(5)],
             "start": [0, 0],
             "end": [0, 2],
         }
@@ -32,7 +32,7 @@ class AppTests(unittest.TestCase):
     def test_graph_renderer_uses_vertical_tree_layout(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("d3.tree()", html)
+        self.assertIn("flattenSearchTree", html)
         self.assertIn("buildRouteTree", html)
         self.assertNotIn("node.col * cellStep", html)
         self.assertNotIn("graph-grid-v", html)
@@ -52,6 +52,110 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('javascript', response.headers['content-type'])
         self.assertIn('d3', response.text[:500].lower())
+
+    def test_line_page_loads_line_follower_template(self):
+        response = client.get("/linea")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Modulo Seguidor de Linea", response.text)
+        self.assertIn("Grafo fisico fijo", response.text)
+
+    def test_line_page_has_fixed_astar_graph_ui(self):
+        html = (main.BASE_DIR / "linea.html").read_text(encoding="utf-8")
+
+        self.assertIn('/static/d3.min.js', html)
+        self.assertNotIn('https://', html)
+        self.assertNotIn('http://', html)
+        self.assertIn("const lineGraph", html)
+        self.assertIn("id: 'A'", html)
+        self.assertIn("id: 'J'", html)
+        self.assertIn("label: 'A'", html)
+        self.assertIn("label: 'J'", html)
+        self.assertEqual(html.count("id: '"), 10)
+        self.assertIn("{ id: 'A', label: 'A', x: 100, y: 280, cost: 6 }", html)
+        self.assertIn("{ id: 'B', label: 'B', x: 230, y: 280, cost: 14 }", html)
+        self.assertIn("{ id: 'C', label: 'C', x: 370, y: 280, cost: 3 }", html)
+        self.assertIn("{ id: 'D', label: 'D', x: 510, y: 280, cost: 11 }", html)
+        self.assertIn("{ id: 'E', label: 'E', x: 650, y: 280, cost: 18 }", html)
+        self.assertIn("{ id: 'F', label: 'F', x: 230, y: 120, cost: 7 }", html)
+        self.assertIn("{ id: 'G', label: 'G', x: 510, y: 120, cost: 20 }", html)
+        self.assertIn("{ id: 'H', label: 'H', x: 510, y: 440, cost: 2 }", html)
+        self.assertIn("{ id: 'I', label: 'I', x: 650, y: 440, cost: 16 }", html)
+        self.assertIn("{ id: 'J', label: 'J', x: 790, y: 440, cost: 9 }", html)
+        self.assertIn("{ source: 'A', target: 'B' }", html)
+        self.assertIn("{ source: 'C', target: 'D' }", html)
+        self.assertIn("{ source: 'D', target: 'E' }", html)
+        self.assertIn("{ source: 'B', target: 'F' }", html)
+        self.assertIn("{ source: 'D', target: 'G' }", html)
+        self.assertIn("{ source: 'D', target: 'H' }", html)
+        self.assertIn("{ source: 'E', target: 'I' }", html)
+        self.assertIn("{ source: 'H', target: 'I' }", html)
+        self.assertIn("{ source: 'I', target: 'J' }", html)
+        self.assertIn("const tentativeG = gScore.get(current.id) + nodesById.get(neighbor.id).cost", html)
+        self.assertIn("function selectEndpoint(type, nodeId)", html)
+        self.assertIn("function solveLineGraph()", html)
+        self.assertIn("function astarGraph(startId, endId)", html)
+        self.assertIn("function renderSearchTree(tree)", html)
+        self.assertIn("fetch('/api/send'", html)
+        self.assertIn("ADELANTE", html)
+        self.assertIn("STOP", html)
+
+    def test_line_page_has_static_svg_fallback_graph(self):
+        html = (main.BASE_DIR / "linea.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="line-graph-fallback"', html)
+        self.assertEqual(html.count('class="fallback-node"'), 10)
+        self.assertIn('A c:6', html)
+        self.assertIn('J c:9', html)
+        self.assertIn('#line-graph-svg { height: 540px;', html)
+
+    def test_line_page_tree_svg_has_explicit_render_area(self):
+        html = (main.BASE_DIR / "linea.html").read_text(encoding="utf-8")
+
+        self.assertIn('#search-tree-svg { height: 520px;', html)
+        self.assertIn("treeSvg.setAttribute('viewBox', `0 0 ${treeWidth} ${treeHeight}`)", html)
+        self.assertIn("const treeWidth = 1200", html)
+        self.assertIn("const treeHeight = 520", html)
+        self.assertIn("const renderedTreeHeight = Math.max(treeHeight, 140 + maxDepth * 105)", html)
+        self.assertIn("treeSvg.style.height = `${treeHeight}px`", html)
+
+    def test_line_page_uses_native_svg_rendering_for_graph_and_tree(self):
+        html = (main.BASE_DIR / "linea.html").read_text(encoding="utf-8")
+
+        self.assertIn("function renderLineGraph()", html)
+        self.assertIn("function renderSearchTree(tree)", html)
+        self.assertIn("line-graph-node", html)
+        self.assertIn("onclick=\"selectEndpoint", html)
+        self.assertIn("function flattenSearchTree", html)
+        self.assertIn("function renderOptimalRoute(result)", html)
+        self.assertIn('id="optimal-route"', html)
+        self.assertIn("Árbol de recorrido", html)
+        self.assertIn("Nodo ${node.id} | c:${enteredCost}", html)
+        self.assertNotIn("Nodo ${node.id} (${node.x},${node.y})", html)
+        self.assertNotIn("d3.select('#line-graph-svg')", html)
+        self.assertNotIn("d3.hierarchy(tree)", html)
+
+    def test_line_follower_esp32_template_exists(self):
+        sketch = main.BASE_DIR / "esp32_carro_linea" / "esp32_carro_linea.ino"
+        code = sketch.read_text(encoding="utf-8")
+
+        self.assertIn("PIN_L298N_IN1", code)
+        self.assertIn("PIN_TCRT_LEFT", code)
+        self.assertIn("PIN_TCRT_RIGHT", code)
+        self.assertIn("MPU6050_ADDR", code)
+        self.assertIn("followLineUntilIntersection", code)
+        self.assertIn("executeTurnToHeading", code)
+        self.assertIn("WebSocketsClient", code)
+        self.assertIn("GIRAR_NORTE", code)
+        self.assertIn("quoteStart = msg.indexOf", code)
+        self.assertIn("executeCommand(command)", code)
+        self.assertNotIn("commands.indexOf(\"\\\",\\\"\", pos)", code)
+
+    def test_home_page_links_to_line_follower_module(self):
+        html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('href="/linea"', html)
+        self.assertIn("SEGUIDOR DE LINEA", html)
 
     def test_solve_rejects_start_on_obstacle(self):
         payload = {
@@ -120,21 +224,21 @@ class AppTests(unittest.TestCase):
     def test_graph_renderer_uses_readable_large_node_labels(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("const nodeRadius = options.nodeRadius || 30", html)
-        self.assertIn("nodes.length * (options.nodeGap || 120)", html)
-        self.assertIn(".attr('stroke-width', d => d.target.data.edgeInPath ? 5 : 2)", html)
-        self.assertIn(".attr('font-size', '16')", html)
-        self.assertIn(".attr('font-size', '12')", html)
+        self.assertIn('r="30"', html)
+        self.assertIn("tree-node", html)
+        self.assertIn("tree-edge", html)
+        self.assertIn("number-text", html)
+        self.assertIn("node-cost", html)
+        self.assertIn("graph-content", html)
         self.assertIn("renderGraphInto('graph-svg', graph, {", html)
-        self.assertIn("nodeGap: 120", html)
-        self.assertIn("nodeRadius: 30", html)
+        self.assertIn("width: 1200", html)
 
     def test_graph_renderer_has_bottom_space_for_terminal_node_costs(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("bottom: 95", html)
-        self.assertIn("labelSpace = options.labelSpace || 80", html)
-        self.assertIn("innerH + margin.top + margin.bottom + labelSpace", html)
+        self.assertIn("depth * 105", html)
+        self.assertIn("140 + maxDepth", html)
+        self.assertIn("renderedHeight", html)
 
     def test_ui_renders_optimal_route_cost_summary(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
@@ -202,33 +306,33 @@ class AppTests(unittest.TestCase):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
         self.assertIn("renderGraphInto", html)
-        self.assertIn("orthogonalPath", html)
-        self.assertIn("path.edge", html)
-        self.assertNotIn("line.edge", html)
+        self.assertIn("tree-edge", html)
+        self.assertIn("V${midY} H${item.x}", html)
 
     def test_graph_renderer_uses_hierarchy_layout_data(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("const layoutNodes = root.descendants()", html)
-        self.assertIn("const layoutEdges = root.links()", html)
-        self.assertIn("d => `translate(${d.x},${d.y})`", html)
+        self.assertIn("flattenSearchTree(rootData)", html)
+        self.assertIn("flatNodes.filter(item => item.data.parent)", html)
+        self.assertIn("item.x", html)
+        self.assertIn("item.y", html)
         self.assertNotIn(".data(nodes)\n    .join('g')", html)
 
     def test_graph_renderer_maps_tree_depth_vertically(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("d3.tree().size([innerW, innerH])(root)", html)
-        self.assertIn("d.x = margin.left + treeX", html)
-        self.assertIn("d.y = margin.top + treeY", html)
-        self.assertNotIn("d.x = margin.left + treeY", html)
+        self.assertIn("depth * 105", html)
+        self.assertIn("item.x = ((index + 1) * W)", html)
+        self.assertIn("item.y = 70 + depth", html)
+        self.assertNotIn("d.y = margin.left + treeX", html)
 
     def test_graph_renderer_uses_larger_nodes_and_offset_arrows(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("const nodeRadius = options.nodeRadius || 30", html)
-        self.assertIn("const arrowGap = options.arrowGap || 12", html)
-        self.assertIn("orthogonalPath(edge, nodeRadius + arrowGap)", html)
-        self.assertIn(".attr('r', nodeRadius)", html)
+        self.assertIn('r="30"', html)
+        self.assertIn("parent.y + 30", html)
+        self.assertIn("item.y - 30", html)
+        self.assertIn("tree-node", html)
 
     def test_astar_returns_optimal_path_for_obstacle_grid(self):
         grid = [
@@ -268,6 +372,30 @@ class AppTests(unittest.TestCase):
         self.assertEqual(node_details[(0, 2)]["h"], 0)
         self.assertEqual(node_details[(0, 2)]["f"], 4)
         self.assertEqual(node_details[(0, 2)]["parent"], (1, 2))
+
+    def test_astar_5x5_manhattan_heuristic_f_g_h_values(self):
+        grid = [[0] * 5 for _ in range(5)]
+        start = [0, 0]
+        end = [4, 4]
+
+        path, explored, came_from, node_details, total_cost = main.astar(grid, start, end)
+
+        h_start = abs(0 - 4) + abs(0 - 4)
+        h_end = abs(4 - 4) + abs(4 - 4)
+
+        self.assertEqual(node_details[(0, 0)]["g"], 0)
+        self.assertEqual(node_details[(0, 0)]["h"], h_start)
+        self.assertEqual(node_details[(0, 0)]["f"], h_start)
+
+        self.assertEqual(node_details[(4, 4)]["g"], total_cost)
+        self.assertEqual(node_details[(4, 4)]["h"], h_end)
+        self.assertEqual(node_details[(4, 4)]["f"], total_cost)
+
+        intermediate = path[len(path) // 2]
+        self.assertIn(tuple(intermediate), node_details)
+        self.assertGreater(node_details[tuple(intermediate)]["g"], 0)
+        self.assertGreater(node_details[tuple(intermediate)]["h"], 0)
+        self.assertEqual(node_details[tuple(intermediate)]["f"], node_details[tuple(intermediate)]["g"] + node_details[tuple(intermediate)]["h"])
 
     def test_solve_returns_weighted_graph_costs_and_total_cost(self):
         payload = {
@@ -330,12 +458,12 @@ class AppTests(unittest.TestCase):
 
         self.assertIn("baseWidth", html)
         self.assertIn("baseHeight", html)
-        self.assertIn("setGraphCanvasSize(svgEl, fullW, fullH)", html)
+        self.assertIn("setGraphCanvasSize(svgEl, W, renderedHeight)", html)
         self.assertIn("svg.dataset.baseWidth", html)
         self.assertIn("svg.style.width = `${baseWidth * graphModalZoom}px`", html)
         self.assertIn("svg.style.height = `${baseHeight * graphModalZoom}px`", html)
-        self.assertIn("nodeRadius: 42", html)
-        self.assertIn(".attr('font-size', d => d.data.isStart || d.data.isEnd ? '22' : '20')", html)
+        self.assertIn("fixedCanvas: true", html)
+        self.assertIn("tree-node", html)
 
     def test_grid_and_graph_show_unique_cell_numbers(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
@@ -343,7 +471,7 @@ class AppTests(unittest.TestCase):
         self.assertIn("function cellNumber(r, c)", html)
         self.assertIn('<span class="cell-num">${cellNumber(r, c)}</span>', html)
         self.assertIn('<span class="coord">${r},${c}</span>', html)
-        self.assertIn(".text(d => d.data.number)", html)
+        self.assertIn('class="number-text"', html)
 
     def test_ui_renders_astar_costs_and_legend(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
@@ -357,8 +485,8 @@ class AppTests(unittest.TestCase):
         self.assertIn("f = g + h", html)
         self.assertIn("renderCostMetrics(data.graph.nodes)", html)
         self.assertIn("Costo total", html)
-        self.assertIn(".text(d => `c:${d.data.cost}`)", html)
-        self.assertIn(".text(d => `${d.data.g} / ${d.data.h} / ${d.data.f}`)", html)
+        self.assertIn('class="node-cost"', html)
+        self.assertIn('class="small"', html)
 
     def test_ui_uses_arduino_ide_dark_palette(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
@@ -372,8 +500,8 @@ class AppTests(unittest.TestCase):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
         self.assertIn("grid-template-columns: minmax(820px, 1fr)", html)
-        self.assertIn("grid-template-columns: repeat(8, 76px)", html)
-        self.assertIn("grid-template-rows: repeat(8, 76px)", html)
+        self.assertIn("grid-template-columns: repeat(5, 76px)", html)
+        self.assertIn("grid-template-rows: repeat(5, 76px)", html)
         self.assertIn("width: 76px; height: 76px", html)
         self.assertIn("font-size: 1.25rem", html)
 
