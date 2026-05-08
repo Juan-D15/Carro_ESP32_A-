@@ -149,9 +149,11 @@
   button.green { background: var(--green); border-color: var(--green); color: #061113; }
   button.green:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  .mode-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mode-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .mode-btn.active.start { background: var(--green); border-color: var(--green); color: #061113; }
   .mode-btn.active.end { background: var(--accent2); border-color: var(--accent2); color: #061113; }
+  .mode-btn.active.block { background: var(--red); border-color: var(--red); color: #fff; }
+  .mode-btn.block { border-color: var(--red); color: var(--red); }
 
   .summary {
     display: grid;
@@ -206,6 +208,7 @@
   .dot.start { background: var(--green); border-color: var(--green); }
   .dot.end { background: var(--accent2); border-color: var(--accent2); }
   .dot.path { background: var(--yellow); border-color: var(--yellow); }
+  .dot.blocked { background: #444; border-color: #444; }
 
   svg { width: 100%; height: 100%; display: block; }
   #line-graph-svg { height: 540px; min-height: 540px; background: #10181c; border: 1px solid var(--border); margin-top: 14px; }
@@ -220,6 +223,8 @@
   .node.end circle { fill: rgba(228,113,40,0.28); stroke: var(--accent2); }
   .node.path circle { stroke: var(--yellow); stroke-width: 5; }
   .node text { fill: var(--text); font-family: var(--mono); font-weight: 700; pointer-events: none; }
+  .node.blocked circle { fill: #333; stroke: #444; opacity: 0.6; }
+  .node.blocked text { fill: #666; text-decoration: line-through; }
   .node .metric { fill: var(--text-dim); font-size: 11px; font-weight: 400; }
   .node .node-cost { fill: var(--yellow); font-size: 12px; font-weight: 700; }
   .fallback-edge { stroke: #65777f; stroke-width: 4; }
@@ -274,30 +279,34 @@
       <span><i class="dot start"></i>Inicio</span>
       <span><i class="dot end"></i>Fin</span>
       <span><i class="dot path"></i>Ruta A*</span>
+      <span><i class="dot blocked"></i>Bloqueado</span>
       <span><i class="dot"></i>Nodo disponible</span>
     </div>
     <svg id="line-graph-svg" viewBox="0 0 900 560" role="img" aria-label="Grafo fijo de 10 nodos para seguidor de linea">
       <g id="line-graph-fallback">
-        <line class="fallback-edge" x1="100" y1="280" x2="230" y2="280"/>
-        <line class="fallback-edge" x1="230" y1="280" x2="370" y2="280"/>
-        <line class="fallback-edge" x1="370" y1="280" x2="510" y2="280"/>
-        <line class="fallback-edge" x1="510" y1="280" x2="650" y2="280"/>
-        <line class="fallback-edge" x1="230" y1="280" x2="230" y2="120"/>
-        <line class="fallback-edge" x1="510" y1="280" x2="510" y2="120"/>
-        <line class="fallback-edge" x1="510" y1="280" x2="510" y2="440"/>
-        <line class="fallback-edge" x1="650" y1="280" x2="650" y2="440"/>
-        <line class="fallback-edge" x1="510" y1="440" x2="650" y2="440"/>
-        <line class="fallback-edge" x1="650" y1="440" x2="790" y2="440"/>
-        <g class="fallback-node" data-kind="start" transform="translate(100,280)"><circle r="34"/><text y="4">A</text><text class="fallback-cost" y="54">A c:6</text></g>
-        <g class="fallback-node" transform="translate(230,280)"><circle r="34"/><text y="4">B</text><text class="fallback-cost" y="54">B c:14</text></g>
-        <g class="fallback-node" transform="translate(370,280)"><circle r="34"/><text y="4">C</text><text class="fallback-cost" y="54">C c:3</text></g>
-        <g class="fallback-node" transform="translate(510,280)"><circle r="34"/><text y="4">D</text><text class="fallback-cost" y="54">D c:11</text></g>
+        <line class="fallback-edge" x1="130" y1="120" x2="130" y2="280"/>
+        <line class="fallback-edge" x1="130" y1="120" x2="260" y2="280"/>
+        <line class="fallback-edge" x1="260" y1="120" x2="260" y2="280"/>
+        <line class="fallback-edge" x1="260" y1="120" x2="650" y2="280"/>
+        <line class="fallback-edge" x1="130" y1="280" x2="260" y2="280"/>
+        <line class="fallback-edge" x1="130" y1="280" x2="130" y2="440"/>
+        <line class="fallback-edge" x1="130" y1="440" x2="260" y2="280"/>
+        <line class="fallback-edge" x1="260" y1="280" x2="390" y2="280"/>
+        <line class="fallback-edge" x1="390" y1="280" x2="520" y2="280"/>
+        <line class="fallback-edge" x1="390" y1="280" x2="390" y2="440"/>
+        <line class="fallback-edge" x1="520" y1="280" x2="650" y2="280"/>
+        <line class="fallback-edge" x1="520" y1="280" x2="520" y2="440"/>
+        <line class="fallback-edge" x1="390" y1="440" x2="520" y2="440"/>
+        <g class="fallback-node" data-kind="start" transform="translate(130,280)"><circle r="34"/><text y="4">A</text><text class="fallback-cost" y="54">A c:6</text></g>
+        <g class="fallback-node" transform="translate(260,280)"><circle r="34"/><text y="4">B</text><text class="fallback-cost" y="54">B c:14</text></g>
+        <g class="fallback-node" transform="translate(390,280)"><circle r="34"/><text y="4">C</text><text class="fallback-cost" y="54">C c:3</text></g>
+        <g class="fallback-node" transform="translate(520,280)"><circle r="34"/><text y="4">D</text><text class="fallback-cost" y="54">D c:11</text></g>
         <g class="fallback-node" transform="translate(650,280)"><circle r="34"/><text y="4">E</text><text class="fallback-cost" y="54">E c:18</text></g>
-        <g class="fallback-node" transform="translate(230,120)"><circle r="34"/><text y="4">F</text><text class="fallback-cost" y="54">F c:7</text></g>
-        <g class="fallback-node" transform="translate(510,120)"><circle r="34"/><text y="4">G</text><text class="fallback-cost" y="54">G c:20</text></g>
-        <g class="fallback-node" transform="translate(510,440)"><circle r="34"/><text y="4">H</text><text class="fallback-cost" y="54">H c:2</text></g>
-        <g class="fallback-node" transform="translate(650,440)"><circle r="34"/><text y="4">I</text><text class="fallback-cost" y="54">I c:16</text></g>
-        <g class="fallback-node" data-kind="end" transform="translate(790,440)"><circle r="34"/><text y="4">J</text><text class="fallback-cost" y="54">J c:9</text></g>
+        <g class="fallback-node" transform="translate(130,120)"><circle r="34"/><text y="4">F</text><text class="fallback-cost" y="54">F c:7</text></g>
+        <g class="fallback-node" transform="translate(260,120)"><circle r="34"/><text y="4">G</text><text class="fallback-cost" y="54">G c:20</text></g>
+        <g class="fallback-node" transform="translate(130,440)"><circle r="34"/><text y="4">H</text><text class="fallback-cost" y="54">H c:2</text></g>
+        <g class="fallback-node" transform="translate(390,440)"><circle r="34"/><text y="4">I</text><text class="fallback-cost" y="54">I c:16</text></g>
+        <g class="fallback-node" data-kind="end" transform="translate(520,440)"><circle r="34"/><text y="4">J</text><text class="fallback-cost" y="54">J c:9</text></g>
       </g>
     </svg>
   </section>
@@ -308,6 +317,7 @@
       <div class="mode-row">
         <button class="mode-btn active start" id="start-mode" onclick="setSelectionMode('start')">Marcar inicio</button>
         <button class="mode-btn end" id="end-mode" onclick="setSelectionMode('end')">Marcar fin</button>
+        <button class="mode-btn block" id="block-mode" onclick="setSelectionMode('block')">Bloquear nodo</button>
       </div>
 
       <div class="field">
@@ -322,8 +332,9 @@
 
       <button class="primary" onclick="solveLineGraph()">Calcular ruta A*</button>
       <button class="green" id="send-btn" onclick="sendLineCommands()" disabled>Enviar al carro</button>
+      <button onclick="clearBlockedNodes()">Limpiar bloqueos</button>
 
-      <p class="hint">Usa los botones para elegir si el click sobre un nodo marca inicio o fin. Los costes del grafo son fijos para que puedas replicarlo fisicamente.</p>
+      <p class="hint">Usa los botones para elegir si el click sobre un nodo marca inicio, fin o lo bloquea. Los costes del grafo son fijos para que puedas replicarlo fisicamente.</p>
 
       <div class="summary">
         <div><strong>Ruta:</strong> <span id="route-output">Sin calcular</span></div>
@@ -347,27 +358,30 @@
 <script>
 const lineGraph = {
   nodes: [
-    { id: 'A', label: 'A', x: 100, y: 280, cost: 6 },
-    { id: 'B', label: 'B', x: 230, y: 280, cost: 14 },
-    { id: 'C', label: 'C', x: 370, y: 280, cost: 3 },
-    { id: 'D', label: 'D', x: 510, y: 280, cost: 11 },
+    { id: 'A', label: 'A', x: 130, y: 280, cost: 6 },
+    { id: 'B', label: 'B', x: 260, y: 280, cost: 14 },
+    { id: 'C', label: 'C', x: 390, y: 280, cost: 3 },
+    { id: 'D', label: 'D', x: 520, y: 280, cost: 11 },
     { id: 'E', label: 'E', x: 650, y: 280, cost: 18 },
-    { id: 'F', label: 'F', x: 230, y: 120, cost: 7 },
-    { id: 'G', label: 'G', x: 510, y: 120, cost: 20 },
-    { id: 'H', label: 'H', x: 510, y: 440, cost: 2 },
-    { id: 'I', label: 'I', x: 650, y: 440, cost: 16 },
-    { id: 'J', label: 'J', x: 790, y: 440, cost: 9 },
+    { id: 'F', label: 'F', x: 130, y: 120, cost: 7 },
+    { id: 'G', label: 'G', x: 260, y: 120, cost: 20 },
+    { id: 'H', label: 'H', x: 130, y: 440, cost: 2 },
+    { id: 'I', label: 'I', x: 390, y: 440, cost: 16 },
+    { id: 'J', label: 'J', x: 520, y: 440, cost: 9 },
   ],
   edges: [
+    { source: 'F', target: 'A' },
+    { source: 'F', target: 'B' },
+    { source: 'G', target: 'B' },
+    { source: 'G', target: 'E' },
     { source: 'A', target: 'B' },
+    { source: 'A', target: 'H' },
+    { source: 'H', target: 'B' },
     { source: 'B', target: 'C' },
     { source: 'C', target: 'D' },
+    { source: 'C', target: 'I' },
     { source: 'D', target: 'E' },
-    { source: 'B', target: 'F' },
-    { source: 'D', target: 'G' },
-    { source: 'D', target: 'H' },
-    { source: 'E', target: 'I' },
-    { source: 'H', target: 'I' },
+    { source: 'D', target: 'J' },
     { source: 'I', target: 'J' },
   ],
 };
@@ -377,6 +391,7 @@ const adjacency = buildAdjacency(lineGraph);
 let selectionMode = 'start';
 let startNode = 'A';
 let endNode = 'J';
+let blockedNodes = new Set();
 let currentPath = [];
 let currentCommands = [];
 let currentTree = null;
@@ -403,9 +418,34 @@ function setSelectionMode(mode) {
   selectionMode = mode;
   document.getElementById('start-mode').classList.toggle('active', mode === 'start');
   document.getElementById('end-mode').classList.toggle('active', mode === 'end');
+  document.getElementById('block-mode').classList.toggle('active', mode === 'block');
 }
 
 function selectEndpoint(type, nodeId) {
+  if (type === 'block') {
+    if (nodeId === startNode || nodeId === endNode) {
+      document.getElementById('status-output').textContent = `No se puede bloquear nodo ${nodeId} (inicio o fin)`;
+      return;
+    }
+    if (blockedNodes.has(nodeId)) {
+      blockedNodes.delete(nodeId);
+    } else {
+      blockedNodes.add(nodeId);
+    }
+    currentPath = [];
+    currentCommands = [];
+    currentTree = null;
+    document.getElementById('send-btn').disabled = true;
+    document.getElementById('route-output').textContent = 'Sin calcular';
+    document.getElementById('cost-output').textContent = '-';
+    document.getElementById('commands-output').innerHTML = '';
+    document.getElementById('status-output').textContent = 'Listo para calcular';
+    document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
+    renderLineGraph();
+    renderSearchTree(null);
+    return;
+  }
+
   if (type === 'start') {
     startNode = nodeId;
     if (startNode === endNode) endNode = nextDifferentNode(startNode);
@@ -433,6 +473,21 @@ function nextDifferentNode(nodeId) {
   return lineGraph.nodes.find(node => node.id !== nodeId).id;
 }
 
+function clearBlockedNodes() {
+  blockedNodes.clear();
+  currentPath = [];
+  currentCommands = [];
+  currentTree = null;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('route-output').textContent = 'Sin calcular';
+  document.getElementById('cost-output').textContent = '-';
+  document.getElementById('commands-output').innerHTML = '';
+  document.getElementById('status-output').textContent = 'Listo para calcular';
+  document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
+  renderLineGraph();
+  renderSearchTree(null);
+}
+
 const minCostTo = (() => {
   const costs = {};
   lineGraph.nodes.forEach(node => {
@@ -441,10 +496,17 @@ const minCostTo = (() => {
   return costs;
 })();
 
-function dijkstraMinCostToAll(startId) {
+let blockedMinCostTo = JSON.parse(JSON.stringify(minCostTo));
+
+function dijkstraMinCostToAll(startId, blocked = new Set()) {
   const dist = new Map();
   const pq = new Set();
-  lineGraph.nodes.forEach(n => { dist.set(n.id, Infinity); pq.add(n.id); });
+  lineGraph.nodes.forEach(n => {
+    if (blocked.has(n.id)) return;
+    dist.set(n.id, Infinity);
+    pq.add(n.id);
+  });
+  if (!dist.has(startId)) return dist;
   dist.set(startId, 0);
 
   while (pq.size > 0) {
@@ -455,6 +517,7 @@ function dijkstraMinCostToAll(startId) {
 
     adjacency.get(minNode).forEach(neighbor => {
       if (!pq.has(neighbor.id)) return;
+      if (blocked.has(neighbor.id)) return;
       const alt = dist.get(minNode) + nodesById.get(neighbor.id).cost;
       if (alt < dist.get(neighbor.id)) dist.set(neighbor.id, alt);
     });
@@ -462,11 +525,24 @@ function dijkstraMinCostToAll(startId) {
   return dist;
 }
 
+function updateBlockedHeuristic() {
+  lineGraph.nodes.forEach(node => {
+    blockedMinCostTo[node.id] = dijkstraMinCostToAll(node.id, blockedNodes);
+  });
+}
+
 function graphHeuristic(fromId, toId) {
+  if (blockedNodes.size > 0 && blockedMinCostTo[toId]) {
+    return blockedMinCostTo[toId].get(fromId) || 0;
+  }
   return minCostTo[toId].get(fromId) || 0;
 }
 
 function astarGraph(startId, endId) {
+  if (blockedNodes.has(startId) || blockedNodes.has(endId)) {
+    return { path: [], totalCost: null, explored: [], tree: null };
+  }
+
   const open = [{ id: startId, g: 0, h: graphHeuristic(startId, endId), f: graphHeuristic(startId, endId) }];
   const cameFrom = new Map();
   const gScore = new Map([[startId, 0]]);
@@ -493,6 +569,7 @@ function astarGraph(startId, endId) {
 
     adjacency.get(current.id).forEach(neighbor => {
       if (closed.has(neighbor.id)) return;
+      if (blockedNodes.has(neighbor.id)) return;
       const tentativeG = gScore.get(current.id) + nodesById.get(neighbor.id).cost;
       if (tentativeG < (gScore.get(neighbor.id) ?? Infinity)) {
         const h = graphHeuristic(neighbor.id, endId);
@@ -535,16 +612,24 @@ function buildSearchTree(details, startId, path) {
 function pathToCommands(path) {
   if (path.length < 2) return [];
   const commands = [];
+  let prevHeading = null;
   for (let i = 1; i < path.length; i++) {
     const previous = nodesById.get(path[i - 1]);
     const current = nodesById.get(path[i]);
     const dx = current.x - previous.x;
     const dy = current.y - previous.y;
+    let heading;
     if (Math.abs(dx) > Math.abs(dy)) {
-      commands.push(dx > 0 ? 'GIRAR_ESTE' : 'GIRAR_OESTE');
+      heading = dx > 0 ? 'GIRAR_ESTE' : 'GIRAR_OESTE';
     } else {
-      commands.push(dy > 0 ? 'GIRAR_SUR' : 'GIRAR_NORTE');
+      heading = dy > 0 ? 'GIRAR_SUR' : 'GIRAR_NORTE';
     }
+    if (i === 1 && heading !== 'GIRAR_ESTE') {
+      commands.push(heading);
+    } else if (i > 1 && heading !== prevHeading) {
+      commands.push(heading);
+    }
+    prevHeading = heading;
     commands.push('ADELANTE');
   }
   commands.push('STOP');
@@ -557,6 +642,12 @@ function solveLineGraph() {
     return;
   }
 
+  if (blockedNodes.has(startNode) || blockedNodes.has(endNode)) {
+    document.getElementById('status-output').textContent = 'Inicio o fin no puede estar bloqueado';
+    return;
+  }
+
+  updateBlockedHeuristic();
   const result = astarGraph(startNode, endNode);
   currentPath = result.path;
   currentTree = result.tree;
@@ -614,6 +705,7 @@ function renderLineGraph() {
   const edgesMarkup = lineGraph.edges.map(edge => {
     const source = nodesById.get(edge.source);
     const target = nodesById.get(edge.target);
+    if (blockedNodes.has(edge.source) || blockedNodes.has(edge.target)) return '';
     const edgeClass = `edge ${pathEdges.has(edgeKey(edge.source, edge.target)) ? 'path' : ''}`;
     return `<line class="${edgeClass}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"/>`;
   }).join('');
@@ -626,6 +718,7 @@ function renderLineGraph() {
       node.id === startNode ? 'start' : '',
       node.id === endNode ? 'end' : '',
       currentPath.includes(node.id) ? 'path' : '',
+      blockedNodes.has(node.id) ? 'blocked' : '',
     ].join(' ');
     const metrics = detail ? `<text class="metric" text-anchor="middle" y="68">g:${detail.g} h:${detail.h} f:${detail.f}</text>` : '';
     return `<g class="${nodeClass}" transform="translate(${node.x},${node.y})" onclick="selectEndpoint(selectionMode, '${node.id}')">
