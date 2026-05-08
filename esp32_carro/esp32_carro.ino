@@ -166,7 +166,6 @@ void executeGirar(const String& direction) {
   }
 
   stopMotors();
-  delay(50);
 
   heading += turnLeft ? angleTurned : -angleTurned;
   while (heading < 0)   heading += 360;
@@ -192,11 +191,6 @@ void executeGirar(const String& direction) {
   }
 
   logicalHeading = headingToDir(heading);
-
-  moveForward();
-  delay(200);
-  stopMotors();
-  delay(100);
   centerSteering(!turnLeft);
 }
 
@@ -217,8 +211,6 @@ void executeCommand(const String& cmd) {
   } else if (cmd.startsWith("GIRAR_")) {
     executeGirar(cmd);
   }
-
-  delay(STOP_DURATION);
 }
 
 // ========== WEBSOCKET ==========
