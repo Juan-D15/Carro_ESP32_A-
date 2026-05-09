@@ -216,12 +216,4 @@ CarroESP-IA-Web/
 └── README.md
 ```
 
----
-
-## Licencia
-
-Este proyecto está bajo la licencia **MIT**.
-
----
-
 Desarrollado como proyecto académico para el control de un carro robótico con **ESP32**, **WebSocket** y algoritmo `A*`.
