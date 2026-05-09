@@ -139,15 +139,15 @@ def astar(grid, start, end, costs=None):
     return None, explored, came_from, node_details, None  # Sin camino
 
 def path_to_commands(path: list) -> list[str]:
-    """Convierte la lista de celdas en comandos de movimiento."""
+    """Convierte la lista de celdas en comandos de movimiento relativo."""
     if not path or len(path) < 2:
         return []
 
     direction_map = {
-        (-1, 0): "NORTE",
-        (1,  0): "SUR",
-        (0, -1): "OESTE",
-        (0,  1): "ESTE",
+        (-1, 0): 0,  # NORTE
+        (1,  0): 2,  # SUR
+        (0, -1): 3,  # OESTE
+        (0,  1): 1,  # ESTE
     }
 
     commands = []
@@ -158,11 +158,23 @@ def path_to_commands(path: list) -> list[str]:
         dc = path[i][1] - path[i-1][1]
         new_dir = direction_map.get((dr, dc))
 
-        if new_dir != current_dir:
-            if current_dir is not None:
-                commands.append(f"GIRAR_{new_dir}")
-            current_dir = new_dir
+        if new_dir is None:
+            continue
 
+        if current_dir is not None:
+            diff = new_dir - current_dir
+            while diff < -2: diff += 4
+            while diff > 2: diff -= 4
+
+            if diff == 1 or diff == -3:
+                commands.append("DERECHA")
+            elif diff == -1 or diff == 3:
+                commands.append("IZQUIERDA")
+            elif diff == 2 or diff == -2:
+                commands.append("DERECHA")
+                commands.append("DERECHA")
+
+        current_dir = new_dir
         commands.append("ADELANTE")
 
     commands.append("STOP")
