@@ -9,17 +9,18 @@
 ![ESP32](https://img.shields.io/badge/ESP32-000000?style=for-the-badge&logo=espressif&logoColor=white)
 ![WebSocket](https://img.shields.io/badge/WebSocket-35495E?style=for-the-badge&logo=socketdotio&logoColor=white)
 
-Interfaz web para controlar un carro robótico mediante el algoritmo `A*`, permitiendo calcular rutas sobre una cuadrícula interactiva y enviar comandos a un **ESP32** por medio de **WebSocket**.
+Interfaz web para controlar un carro robótico mediante el algoritmo `A*`, permitiendo calcular rutas sobre una cuadrícula interactiva, control manual en tiempo real, y enviar comandos a un **ESP32** por medio de **WebSocket**.
 
 ---
 
 ## Características
 
-- **Cuadrícula 8x8** interactiva con celdas de costo aleatorio.
+- **Cuadrícula 5×5** interactiva con celdas de costo aleatorio (1-20).
 - **Algoritmo `A*`** con costos ponderados y heurística Manhattan.
 - **Visualización del grafo** del árbol de búsqueda usando D3.js.
+- **Control manual** (`/control`) con D-pad: envía lotes de comandos mientras se mantiene pulsado para movimiento fluido.
 - **Envío de comandos al ESP32** por WebSocket.
-- Comandos soportados: `ADELANTE`, `ATRAS`, `STOP`, `GIRAR_*`.
+- Comandos soportados: `ADELANTE`, `ATRAS`, `STOP`, `IZQUIERDA`, `DERECHA`, `GIRAR_*`.
 - **Funcionamiento offline**, usando assets locales sin CDNs.
 - **Estilo Arduino IDE**, con tema oscuro y acentos turquesa.
 - Pruebas unitarias para backend e interfaz.
@@ -30,10 +31,11 @@ Interfaz web para controlar un carro robótico mediante el algoritmo `A*`, permi
 
 | Componente | Tecnología | Propósito |
 |-----------|------------|-----------|
-| **Backend** | ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | API REST y WebSocket para comunicación con ESP32 |
-| **Frontend** | ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Interfaz web responsiva |
-| **Visualización** | ![D3.js](https://img.shields.io/badge/D3.js-F9A03C?style=flat-square&logo=d3dotjs&logoColor=white) | Grafo del árbol de búsqueda |
-| **Motor físico** | ![ESP32](https://img.shields.io/badge/ESP32-000000?style=flat-square&logo=espressif&logoColor=white) ![L298N](https://img.shields.io/badge/L298N-Motor_Driver-red?style=flat-square) | Control de 2 motores DC |
+| **Backend** | ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | API REST y WebSocket para comunicación con ESP32/ESP8266 |
+| **Frontend** | ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Interfaz web responsiva (3 páginas) |
+| **Visualización** | ![D3.js](https://img.shields.io/badge/D3.js-F9A03C?style=flat-square&logo=d3dotjs&logoColor=white) | Grafo del árbol de búsqueda A* |
+| **Control manual** | ![Gamepad](https://img.shields.io/badge/D--Pad-Manual_Control-9cf?style=flat-square) | Controles direccionales en tiempo real |
+| **Motor físico** | ![ESP32](https://img.shields.io/badge/ESP32-000000?style=flat-square&logo=espressif&logoColor=white) ![ESP8266](https://img.shields.io/badge/ESP8266-000000?style=flat-square&logo=espressif&logoColor=white) | Control de 2 motores DC (diferencial) |
 | **Testing** | ![unittest](https://img.shields.io/badge/unittest-Python-blue?style=flat-square) | Pruebas unitarias del backend y UI |
 | **Offline** | ![Offline](https://img.shields.io/badge/Offline-Assets_Locales-success?style=flat-square) | Sin dependencias externas ni CDNs |
 
@@ -44,18 +46,20 @@ Interfaz web para controlar un carro robótico mediante el algoritmo `A*`, permi
 ```txt
 ┌─────────────────┐      ┌─────────────────┐
 │   Navegador     │──────│    FastAPI      │
-│   index.html    │◄─────│    Python       │
+│ index.html      │◄─────│    Python       │
+│ linea.html      │      │                 │
+│ control.html    │      │                 │
 └─────────────────┘      └────────┬────────┘
-                                   │
-                          ┌────────┴────────┐
-                          │   WebSocket     │
-                          │    /ws/car      │
-                          └────────┬────────┘
-                                   │
-                          ┌────────▼────────┐
-                          │     ESP32       │
-                          │    WiFi AP      │
-                          └─────────────────┘
+                                    │
+                           ┌────────┴────────┐
+                           │   WebSocket     │
+                           │    /ws/car      │
+                           └────────┬────────┘
+                                    │
+                           ┌────────▼────────┐
+                           │   ESP32/ESP8266 │
+                           │    WiFi AP      │
+                           └─────────────────┘
 ```
 
 ---
@@ -111,10 +115,13 @@ http://localhost:8000
 4. **Calcular ruta**: presionar el botón `CALCULAR RUTA`.
 5. **Ver grafo**: expandir el modal con `VER GRAFO COMPLETO`.
 6. **Enviar al carro**: presionar `ENVIAR AL CARRO`.
+7. **Control manual**: ir a `/control` para operar el carro con los controles direccionales (ratón, tacto o teclado).
 
 ---
 
-## Panel de Controles
+## Paneles de Control
+
+### Cuadrícula A* (`index.html`)
 
 | Control | Descripción |
 |--------|-------------|
@@ -125,19 +132,34 @@ http://localhost:8000
 | **Ejemplo** | Genera un escenario aleatorio |
 | **Limpiar Todo** | Reinicia toda la cuadrícula |
 
+### Control Manual (`control.html`)
+
+| Control | Descripción |
+|--------|-------------|
+| **▲ ADELANTE** | Mantiene pulsado para avanzar (lotes de 2 comandos / 1.2 s) |
+| **▼ ATRAS** | Mantiene pulsado para retroceder |
+| **◄ IZQUIERDA** | Gira 90° a la izquierda |
+| **► DERECHA** | Gira 90° a la derecha |
+| **■ STOP** | Detiene inmediatamente |
+| **Teclado** | Flechas + Espacio + Escape |
+
 ---
 
-## Integración con ESP32
+## Integración con ESP32 / ESP8266
 
 ### Conexión WebSocket
 
-El ESP32 se conecta como cliente WebSocket al servidor:
+El ESP se conecta como cliente WebSocket al servidor:
 
 ```txt
 ws://192.168.4.2:8000/ws/car
 ```
 
-Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
+Esta IP corresponde al servidor cuando el ESP opera en modo **Access Point**.
+
+### Telemetría
+
+El ESP envía datos del giroscopio cada 1000 ms vía WebSocket. El servidor los retransmite a los clientes frontend conectados a `/ws/telemetry` y los guarda en `gyro_telemetry.log`.
 
 ---
 
@@ -148,22 +170,38 @@ Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
 | `ADELANTE` | Avanzar |
 | `ATRAS` | Retroceder |
 | `STOP` | Detener motores |
-| `GIRAR_NORTE` | Girar hacia el norte |
-| `GIRAR_ESTE` | Girar hacia el este |
-| `GIRAR_SUR` | Girar hacia el sur |
-| `GIRAR_OESTE` | Girar hacia el oeste |
+| `IZQUIERDA` | Girar 90° a la izquierda (ESP8266) |
+| `DERECHA` | Girar 90° a la derecha (ESP8266) |
+| `GIRAR_NORTE` | Girar hacia el norte (ESP32) |
+| `GIRAR_ESTE` | Girar hacia el este (ESP32) |
+| `GIRAR_SUR` | Girar hacia el sur (ESP32) |
+| `GIRAR_OESTE` | Girar hacia el oeste (ESP32) |
 
 ---
 
-## Hardware ESP32
+## Hardware
+
+### ESP32
 
 | Componente | Descripción |
 |-----------|-------------|
-| **WiFi** | Modo AP con red `CARRO_ESP` |
+| **WiFi** | Modo AP con red `CarroESP32_ARTYOM` |
 | **IP del ESP32** | `192.168.4.1` |
 | **Motor Driver** | L298N con 2 canales PWM |
-| **Motores** | 2 motores DC |
-| **Giroscopio** | MPU6050 opcional para odometría |
+| **Motores** | 2 motores DC (diferencial) |
+| **Giroscopio** | MPU6050 para odometría y control de giros |
+| **I2C** | SDA=GPIO21, SCL=GPIO22 |
+
+### ESP8266
+
+| Componente | Descripción |
+|-----------|-------------|
+| **WiFi** | Modo AP con red `CarroESP8266_ARTYOM` |
+| **IP del ESP8266** | `192.168.4.1` |
+| **Motor Driver** | L298N con 2 canales PWM |
+| **Motores** | 2 motores DC (diferencial) |
+| **Giroscopio** | MPU6050 solo para telemetría (giros por delay fijo) |
+| **I2C** | SDA=GPIO4 (D2), SCL=GPIO5 (D1) |
 
 ---
 
@@ -183,6 +221,7 @@ Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
 - Los botones y paneles mantienen la estructura esperada.
 - El estilo tipo Arduino IDE se aplica correctamente.
 - Las celdas de inicio y fin mantienen colores fijos.
+- La página `/control` carga correctamente y expone los controles manuales.
 
 ---
 
@@ -191,7 +230,7 @@ Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
 - **Offline**: todos los assets deben ser locales. No usar CDNs.
 - **Sin internet**: el ESP32 opera en modo AP sin acceso a internet.
 - **WebSocket**: el ESP32 se conecta al servidor, no al revés.
-- **Costos**: las celdas tienen costos aleatorios entre `1` y `9`.
+- **Costos**: las celdas tienen costos aleatorios entre `1` y `20`.
 - **Giroscopio**: el motor de dirección no se auto-centra; se debe usar pulso en dirección opuesta.
 
 ---
@@ -201,17 +240,22 @@ Esta IP corresponde al servidor cuando el ESP32 opera en modo **Access Point**.
 ```txt
 CarroESP-IA-Web/
 │
-├── main.py
+├── main.py                  # FastAPI backend + A* + WebSocket
 ├── requirements.txt
 ├── test_main.py
+├── AGENTS.md                # Documentación para agentes de código
 │
 ├── static/
-│   ├── css/
-│   ├── js/
-│   └── assets/
+│   └── d3.min.js            # D3.js v7 (local)
 │
-├── templates/
-│   └── index.html
+├── index.html               # Cuadrícula 5×5 con A*
+├── linea.html               # Seguidor de línea (grafo fijo)
+├── control.html             # Control manual del carro
+│
+├── esp32_carro/
+│   └── esp32_carro.ino      # Sketch ESP32 (giroscopio + motores)
+├── esp8266_carro/
+│   └── esp8266_carro.ino    # Sketch ESP8266 (2 motores diferenciales)
 │
 └── README.md
 ```
