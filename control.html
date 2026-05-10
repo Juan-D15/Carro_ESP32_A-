@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Control Manual — CarroESP</title>
+<style>
+  :root {
+    --bg: #11191f;
+    --surface: #182226;
+    --surface2: #1f2d33;
+    --border: #3a4a50;
+    --accent: #00a6a6;
+    --accent-hover: #12c7c7;
+    --accent2: #e47128;
+    --green: #00b8a9;
+    --red: #e05a47;
+    --yellow: #f2c94c;
+    --text: #d8e2e6;
+    --text-dim: #8fa1a8;
+    --mono: 'Consolas', 'Courier New', monospace;
+    --body: 'Segoe UI', Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: linear-gradient(90deg, rgba(0,166,166,0.05), transparent 32%, rgba(0,0,0,0.12));
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #10181c;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .nav-link {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--accent-hover);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    padding: 8px 12px;
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+
+  .nav-link:hover { background: var(--accent); color: #061113; border-color: var(--accent); }
+  .nav-link.active { background: var(--accent); color: #061113; border-color: var(--accent); }
+
+  #status-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.75rem;
+    color: var(--text-dim); letter-spacing: 1px;
+  }
+
+  #status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red);
+    transition: all 0.3s;
+  }
+
+  #status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(320px, 420px);
+    grid-template-rows: auto;
+    padding: 18px;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 20px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 1px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-header .panel-title {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .dpad {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 80px 80px 80px;
+    gap: 10px;
+    max-width: 280px;
+    margin: 0 auto 24px;
+  }
+
+  .dpad-btn {
+    font-family: var(--mono);
+    font-size: 1.2rem;
+    border: 1px solid var(--border);
+    background: #11191f;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dpad-btn:hover { border-color: var(--accent); color: var(--accent-hover); background: #17252a; }
+  .dpad-btn.active {
+    background: var(--accent);
+    color: #061113;
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(0,166,166,0.4);
+  }
+
+  .dpad-btn.stop {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+  }
+  .dpad-btn.stop:hover { background: #c0483a; border-color: #c0483a; }
+  .dpad-btn.stop.active { background: #ff6b5b; box-shadow: 0 0 12px rgba(224,90,71,0.5); }
+
+  .dpad-up    { grid-column: 2; grid-row: 1; }
+  .dpad-left  { grid-column: 1; grid-row: 2; }
+  .dpad-stop  { grid-column: 2; grid-row: 2; font-size: 0.9rem; }
+  .dpad-right { grid-column: 3; grid-row: 2; }
+  .dpad-down  { grid-column: 2; grid-row: 3; }
+
+  .controls-hint {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  #commands-list {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text);
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #0d1418;
+    border: 1px solid var(--border);
+    padding: 8px;
+  }
+
+  #commands-list::-webkit-scrollbar { width: 4px; }
+  #commands-list::-webkit-scrollbar-track { background: var(--bg); }
+  #commands-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .cmd-item {
+    padding: 6px 9px;
+    border-left: 2px solid var(--border);
+    background: #11191f;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cmd-item.ADELANTE { border-color: var(--accent); color: var(--accent); }
+  .cmd-item.ATRAS    { border-color: var(--accent2); color: var(--accent2); }
+  .cmd-item.IZQUIERDA { border-color: var(--yellow); color: var(--yellow); }
+  .cmd-item.DERECHA  { border-color: var(--yellow); color: var(--yellow); }
+  .cmd-item.STOP     { border-color: var(--red); color: var(--red); }
+
+  .cmd-time {
+    color: var(--text-dim);
+    font-size: 0.6rem;
+    min-width: 56px;
+  }
+
+  .cmd-text {
+    flex: 1;
+  }
+
+  .empty-msg {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 24px 0;
+    letter-spacing: 1px;
+  }
+
+  .total-sent {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  .total-sent strong { color: var(--accent); }
+
+  #gyro-data {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #0d1418;
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    font-family: var(--mono);
+  }
+
+  .gyro-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .gyro-label { color: var(--text-dim); min-width: 90px; }
+  .gyro-value { color: var(--accent); font-weight: 700; text-align: right; flex: 1; font-variant-numeric: tabular-nums; }
+  .gyro-unit  { color: var(--text-dim); font-size: 0.62rem; min-width: 28px; text-align: right; }
+  .gyro-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  .gyro-badge {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+  }
+
+  .gyro-badge.on {
+    background: rgba(0,184,169,0.15);
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+
+  .gyro-badge.off {
+    background: rgba(224,90,71,0.15);
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+
+  .gyro-status {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 12px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+  }
+
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.ok   { border-color: var(--green); color: var(--green); }
+  #toast.err  { border-color: var(--red); color: var(--red); }
+  #toast.info { border-color: var(--accent); color: var(--accent); }
+
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .dpad { max-width: 260px; }
+    .dpad-btn { font-size: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CARRO<span>_</span>CONTROL MANUAL</div>
+  <div class="header-actions">
+    <a class="nav-link" href="/">CUADRICULA</a>
+    <a class="nav-link" href="/linea">SEGUIDOR DE LINEA</a>
+    <a class="nav-link active" href="/control">CONTROL MANUAL</a>
+    <div id="status-badge">
+      <div id="status-dot"></div>
+      <span id="status-text">ESP32 DESCONECTADO</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="panel-title">// Controles</div>
+
+    <div class="dpad">
+      <button class="dpad-btn dpad-up"    data-cmd="ADELANTE"  title="Adelante">▲</button>
+      <button class="dpad-btn dpad-left"  data-cmd="IZQUIERDA" title="Izquierda">◄</button>
+      <button class="dpad-btn dpad-stop stop" data-cmd="STOP" title="Stop">■</button>
+      <button class="dpad-btn dpad-right" data-cmd="DERECHA"  title="Derecha">►</button>
+      <button class="dpad-btn dpad-down"  data-cmd="ATRAS"    title="Atras">▼</button>
+    </div>
+
+    <div class="controls-hint">
+      Teclado: ↑ ↓ ← → para mover · Espacio para STOP · Escape para cancelar
+    </div>
+  </div>
+
+  <div class="right-col" style="display:flex;flex-direction:column;gap:20px;">
+
+    <div class="panel">
+      <div class="panel-title">// Comandos enviados</div>
+      <div id="commands-list">
+        <div class="empty-msg">— SIN COMANDOS —</div>
+      </div>
+      <div class="total-sent">Total enviados: <strong id="total-sent">0</strong></div>
+    </div>
+
+    <div class="panel" id="gyro-panel">
+      <div class="panel-header">
+        <div class="panel-title">// Datos del Giroscopio</div>
+        <div id="gyro-badge" class="gyro-badge off">OFF</div>
+      </div>
+      <div id="gyro-data">
+        <div class="gyro-row">
+          <span class="gyro-label">Velocidad Z</span>
+          <span class="gyro-value" id="gyro-gz">—</span>
+          <span class="gyro-unit">°/s</span>
+        </div>
+        <div class="gyro-row">
+          <span class="gyro-label">Yaw acumulado</span>
+          <span class="gyro-value" id="gyro-yaw">—</span>
+          <span class="gyro-unit">°</span>
+        </div>
+        <div class="gyro-row">
+          <span class="gyro-label">Heading</span>
+          <span class="gyro-value" id="gyro-heading">—</span>
+        </div>
+      </div>
+      <div id="gyro-status" class="gyro-status">Esperando telemetria…</div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const BATCH_SIZE = 2;
+const BATCH_INTERVAL_MS = 1200;
+const COMMANDS = {
+  up:    'ADELANTE',
+  down:  'ATRAS',
+  left:  'IZQUIERDA',
+  right: 'DERECHA',
+  stop:  'STOP'
+};
+
+let activeCommand = null;
+let batchInterval = null;
+let totalSent = 0;
+let commandHistory = [];
+
+function nowTime() {
+  const d = new Date();
+  return d.toTimeString().slice(0, 8);
+}
+
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  setTimeout(() => el.className = '', 3000);
+}
+
+function renderCommands() {
+  const el = document.getElementById('commands-list');
+  if (commandHistory.length === 0) {
+    el.innerHTML = '<div class="empty-msg">— SIN COMANDOS —</div>';
+    return;
+  }
+  el.innerHTML = commandHistory.map((entry) => {
+    const type = entry.text;
+    return `<div class="cmd-item ${type}">
+      <span class="cmd-time">${entry.time}</span>
+      <span class="cmd-text">${entry.text}${entry.count > 1 ? ' ×' + entry.count : ''}</span>
+    </div>`;
+  }).reverse().join('');
+  document.getElementById('total-sent').textContent = totalSent;
+}
+
+function addHistory(text, count = 1) {
+  commandHistory.push({ time: nowTime(), text, count });
+  if (commandHistory.length > 200) commandHistory.shift();
+  renderCommands();
+}
+
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    if (data.esp32_connected) {
+      dot.classList.add('connected');
+      txt.textContent = 'ESP32 CONECTADO';
+    } else {
+      dot.classList.remove('connected');
+      txt.textContent = 'ESP32 DESCONECTADO';
+    }
+  } catch {}
+}
+
+async function sendCommands(commands) {
+  try {
+    const res = await fetch('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      toast(data.message || 'Error al enviar', 'err');
+      return false;
+    }
+    return true;
+  } catch {
+    toast('Error de conexion con el servidor', 'err');
+    return false;
+  }
+}
+
+async function startCommand(cmd) {
+  if (activeCommand && activeCommand !== cmd) {
+    await releaseCommand();
+  }
+  if (activeCommand === cmd) return;
+
+  const statusRes = await fetch('/api/status');
+  const statusData = await statusRes.json();
+  if (!statusData.esp32_connected) {
+    toast('ESP32 no conectado', 'err');
+    return;
+  }
+
+  activeCommand = cmd;
+
+  const batch = Array(BATCH_SIZE).fill(cmd);
+  const ok = await sendCommands(batch);
+  if (!ok) {
+    activeCommand = null;
+    return;
+  }
+  totalSent += BATCH_SIZE;
+  addHistory(cmd, BATCH_SIZE);
+
+  batchInterval = setInterval(async () => {
+    const ok2 = await sendCommands(batch);
+    if (!ok2) {
+      releaseCommand();
+      return;
+    }
+    totalSent += BATCH_SIZE;
+    addHistory(cmd, BATCH_SIZE);
+  }, BATCH_INTERVAL_MS);
+
+  document.querySelectorAll('.dpad-btn').forEach(btn => {
+    if (btn.dataset.cmd === cmd) btn.classList.add('active');
+  });
+}
+
+async function releaseCommand() {
+  if (!activeCommand) return;
+
+  if (batchInterval) {
+    clearInterval(batchInterval);
+    batchInterval = null;
+  }
+
+  await sendCommands(['STOP']);
+  addHistory('STOP', 1);
+
+  document.querySelectorAll('.dpad-btn').forEach(btn => btn.classList.remove('active'));
+  activeCommand = null;
+}
+
+const dpadButtons = document.querySelectorAll('.dpad-btn');
+
+dpadButtons.forEach(btn => {
+  const cmd = btn.dataset.cmd;
+
+  const press = async (e) => {
+    e.preventDefault();
+    if (cmd === 'STOP') {
+      await releaseCommand();
+    } else {
+      await startCommand(cmd);
+    }
+  };
+
+  const release = async (e) => {
+    e.preventDefault();
+    if (activeCommand === cmd) {
+      await releaseCommand();
+    }
+  };
+
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('mouseup', release);
+  btn.addEventListener('mouseleave', release);
+  btn.addEventListener('touchstart', press, { passive: false });
+  btn.addEventListener('touchend', release, { passive: false });
+  btn.addEventListener('touchcancel', release);
+});
+
+const KEY_MAP = {
+  'ArrowUp':    'ADELANTE',
+  'ArrowDown':  'ATRAS',
+  'ArrowLeft':  'IZQUIERDA',
+  'ArrowRight': 'DERECHA',
+  ' ':          'STOP'
+};
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const cmd = KEY_MAP[e.key];
+  if (!cmd) return;
+  e.preventDefault();
+  if (cmd === 'STOP') {
+    releaseCommand();
+  } else {
+    startCommand(cmd);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  const cmd = KEY_MAP[e.key];
+  if (!cmd || cmd === 'STOP') return;
+  if (activeCommand === cmd) {
+    releaseCommand();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    releaseCommand();
+  }
+});
+
+let gyroWs = null;
+let gyroReconnectTimer = null;
+
+function updateGyroUI(data) {
+  const badge = document.getElementById('gyro-badge');
+  const status = document.getElementById('gyro-status');
+
+  if (data.gyroOK) {
+    badge.textContent = 'ON';
+    badge.className = 'gyro-badge on';
+    status.textContent = 'Telemetria en tiempo real';
+  } else {
+    badge.textContent = 'OFF';
+    badge.className = 'gyro-badge off';
+    status.textContent = 'Giroscopio no disponible';
+  }
+
+  document.getElementById('gyro-gz').textContent     = typeof data.gz       === 'number' ? data.gz.toFixed(3)      : '—';
+  document.getElementById('gyro-yaw').textContent    = typeof data.yaw      === 'number' ? data.yaw.toFixed(1)     : '—';
+  document.getElementById('gyro-heading').textContent = typeof data.heading === 'number' ? ['N','E','S','O'][data.heading] ?? '—' : '—';
+}
+
+function connectGyroWS() {
+  if (gyroReconnectTimer) { clearTimeout(gyroReconnectTimer); gyroReconnectTimer = null; }
+  if (gyroWs) { try { gyroWs.close(); } catch {} }
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws/telemetry`;
+
+  gyroWs = new WebSocket(url);
+
+  gyroWs.onopen = () => {
+    document.getElementById('gyro-status').textContent = 'Conectado — esperando datos…';
+  };
+
+  gyroWs.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data.type === 'gyro') updateGyroUI(data);
+    } catch (e) {
+      console.warn('[GYRO WS] JSON invalido', ev.data);
+    }
+  };
+
+  gyroWs.onclose = () => {
+    document.getElementById('gyro-status').textContent = 'Reconectando…';
+    gyroReconnectTimer = setTimeout(connectGyroWS, 3000);
+  };
+
+  gyroWs.onerror = () => {
+    document.getElementById('gyro-status').textContent = 'Error de conexion';
+  };
+}
+
+setInterval(checkStatus, 3000);
+checkStatus();
+connectGyroWS();
+</script>
+
+</body>
+</html>
