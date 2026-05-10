@@ -11,83 +11,64 @@ const char* WS_PATH  = "/ws/car";
 
 // ─────────────────────────────────────────────
 //  PINES
-//
-//  MPU6050 I2C — igual que el ejemplo funcional
-//  SDA = D2 / GPIO4
-//  SCL = D1 / GPIO5
-//
-//  Motor A (izquierdo) — sin cambios
-//  ENA = D4 / GPIO2   PWM
-//  IN1 = D7 / GPIO13
-//  IN2 = D6 / GPIO12
-//
-//  Motor B (derecho) — sin cambios
-//  ENB = D3 / GPIO0   PWM
-//  IN3 = D5 / GPIO14
-//  IN4 = D8 / GPIO15
+//  SDA = D2 / GPIO4  |  SCL = D1 / GPIO5
+//  Motor A (izq): ENA=D4, IN1=D7, IN2=D6
+//  Motor B (der): ENB=D3, IN3=D5, IN4=D8
 // ─────────────────────────────────────────────
 
-// Motor A
 const int ENA = D4; const int IN1 = D7; const int IN2 = D6;
-// Motor B
 const int ENB = D3; const int IN3 = D5; const int IN4 = D8;
 
-// MPU6050
 #define MPU_ADDR 0x68
-#define G_R      131.0f    // ±250°/s → 131 LSB/°/s
+#define G_R      65.5f   // clon MPU6050 ±500°/s
 
-// Tiempos y velocidades
-const unsigned long ADELANTE_DURATION = 1200;
-const unsigned long GIRAR_DURATION    = 400;
-const unsigned long STOP_DURATION     = 100;
-const int SPEED_ADELANTE = 200;
-const int SPEED_GIRO     = 200;
-const int SPEED_CORREC   = 150;
+// ── Ajusta estos dos valores para calibrar el giro de 90° ──
+const unsigned long GIRAR_DURATION = 350;  // ms
+const int           SPEED_GIRO     = 180;  // 0-255
+// ───────────────────────────────────────────────────────────
+
+const unsigned long ADELANTE_DURATION = 600;
+const unsigned long STOP_DURATION     = 300;
+const int           SPEED_ADELANTE    = 180;
 
 // ========== GLOBALES ==========
 WebSocketsClient webSocket;
-bool  wsConnected  = false;
-bool  gyroOK       = false;
-float gyroOffsetZ  = 0.0f;
-float yaw          = 0.0f;   // ángulo acumulado
-int   currentHeading = 0;    // 0=N 1=E 2=S 3=O
+bool  wsConnected    = false;
+bool  gyroOK         = false;
+float gyroOffsetZ    = 0.0f;
+float yaw            = 0.0f;
+int   currentHeading = 0;   // 0=N 1=E 2=S 3=O
 
 // ========== MPU6050 ==========
-// Lee solo GyZ — igual que el ejemplo pero extrae solo el eje Z
 bool readGyroZ(float& gz) {
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x43);               // registro inicio: GyX_H
+  Wire.write(0x43);
   Wire.endTransmission(false);
   Wire.requestFrom(MPU_ADDR, 6, true);
   if (Wire.available() < 6) return false;
-  Wire.read(); Wire.read();       // GyX — descartar
-  Wire.read(); Wire.read();       // GyY — descartar
-  int16_t raw = Wire.read() << 8 | Wire.read(); // GyZ
+  Wire.read(); Wire.read();   // GyX — descartar
+  Wire.read(); Wire.read();   // GyY — descartar
+  int16_t raw = Wire.read() << 8 | Wire.read();
   gz = raw / G_R;
   return true;
 }
 
 void initGyro() {
-  // Wire.begin ya fue llamado en setup() antes de esta función
-  // Wake up
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x6B); Wire.write(0x00);
   uint8_t err = Wire.endTransmission(true);
   Serial.print("[GYRO] Wake up → error: "); Serial.print(err);
-  Serial.println(err == 0 ? " (OK)" : " (fallo — verificar SDA/SCL/VCC/ADO)");
+  Serial.println(err == 0 ? " (OK)" : " (fallo)");
   if (err != 0) return;
 
-  // Rango giroscopio ±250°/s
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x1B); Wire.write(0x00);
   Wire.endTransmission();
 
-  // Filtro DLPF nivel 3 → ~44Hz
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x1A); Wire.write(0x03);
   Wire.endTransmission();
 
-  // Verificar WHO_AM_I
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x75);
   Wire.endTransmission(false);
@@ -95,19 +76,19 @@ void initGyro() {
   if (Wire.available()) {
     uint8_t who = Wire.read();
     Serial.print("[GYRO] WHO_AM_I: 0x"); Serial.print(who, HEX);
-    if (who == 0x68 || who == 0x70) {  // 0x70 = clon MPU6050
+    if (who == 0x68 || who == 0x70) {
       gyroOK = true;
-      Serial.println(who == 0x68 ? " → OK ✓" : " → OK ✓ (clon, who=0x70)");
+      Serial.println(who == 0x68 ? " → OK ✓" : " → OK ✓ (clon 0x70)");
     } else {
-      Serial.println(" → ERROR (valor desconocido)");
+      Serial.println(" → ERROR");
     }
   } else {
-    Serial.println("[GYRO] Sin respuesta en WHO_AM_I");
+    Serial.println("[GYRO] Sin respuesta");
   }
 }
 
 void calibrateGyro() {
-  Serial.println("[GYRO] Calibrando offset (no mover el carro)...");
+  Serial.println("[GYRO] Calibrando (no mover)...");
   float sum = 0; int n = 0;
   for (int i = 0; i < 200; i++) {
     float gz;
@@ -115,8 +96,37 @@ void calibrateGyro() {
     delay(5);
   }
   gyroOffsetZ = (n > 0) ? sum / n : 0;
-  Serial.print("[GYRO] Offset Z: "); Serial.print(gyroOffsetZ, 4);
-  Serial.println(" °/s");
+  Serial.print("[GYRO] Offset Z: "); Serial.println(gyroOffsetZ, 4);
+}
+
+void scanI2C() {
+  Serial.println("[I2C] Escaneando...");
+  int found = 0;
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print("[I2C] Dispositivo en 0x");
+      if (addr < 16) Serial.print("0");
+      Serial.println(addr, HEX);
+      found++;
+    }
+  }
+  if (!found) Serial.println("[I2C] Ningún dispositivo");
+  else { Serial.print("[I2C] Total: "); Serial.println(found); }
+}
+
+// ========== TELEMETRÍA ==========
+void sendGyroTelemetry() {
+  if (!wsConnected) return;
+  float gz = 0.0f;
+  if (gyroOK && readGyroZ(gz)) gz -= gyroOffsetZ;
+  String json = "{\"type\":\"gyro\"";
+  json += ",\"gyroOK\":"  + String(gyroOK ? "true" : "false");
+  json += ",\"gz\":"      + String(gz, 3);
+  json += ",\"yaw\":"     + String(yaw, 2);
+  json += ",\"heading\":" + String(currentHeading);
+  json += "}";
+  webSocket.sendTXT(json);
 }
 
 // ========== MOTORES ==========
@@ -146,81 +156,29 @@ void spinRight(int spd) {
   digitalWrite(IN3,LOW);  digitalWrite(IN4,HIGH); analogWrite(ENB,spd);
 }
 
-// ========== GIRO CON CORRECCIÓN GYRO ==========
+// ========== GIRO — solo delay, sin gyro ==========
 void executeGiro(const String& dir) {
   bool toLeft = (dir == "IZQUIERDA");
-  float targetDeg = 90.0f;
-  float turned    = 0.0f;
-  unsigned long lastT = millis();
 
   Serial.print("\n[GIRO] "); Serial.print(dir);
   Serial.print("  heading: "); Serial.print(currentHeading);
-  Serial.print("  yaw: ");     Serial.print(yaw, 1);
-  Serial.print("°  gyro: ");   Serial.println(gyroOK ? "ON" : "OFF→delay fijo");
+  Serial.print("  speed: ");   Serial.print(SPEED_GIRO);
+  Serial.print("  dur: ");     Serial.print(GIRAR_DURATION); Serial.println("ms");
 
   if (toLeft) spinLeft(SPEED_GIRO);
   else        spinRight(SPEED_GIRO);
 
-  if (gyroOK) {
-    unsigned long startT = millis();
-    int logN = 0;
-    while (turned < targetDeg && millis() - startT < 1500) {
-      float gz;
-      if (readGyroZ(gz)) {
-        gz -= gyroOffsetZ;                        // aplicar calibración
-        unsigned long dtMs = millis() - lastT;
-        turned += fabs(gz) * (dtMs / 1000.0f);   // integrar ángulo
-
-        // Log cada ~40ms
-        if (++logN % 8 == 0) {
-          Serial.print("  gz=");     Serial.print(gz, 2);
-          Serial.print("°/s  girado="); Serial.print(turned, 1);
-          Serial.print("/");         Serial.print(targetDeg, 0); Serial.println("°");
-        }
-
-        // Si detecta rotación contraria al esperado → parar
-        // (si gz siempre aparece con signo contrario, intercambia los signos aquí)
-        if ((toLeft && gz > 3.0f) || (!toLeft && gz < -3.0f)) {
-          Serial.println("  [!] Rotación inversa detectada — deteniendo");
-          break;
-        }
-        lastT = millis();
-      }
-      delay(5);
-    }
-  } else {
-    delay(GIRAR_DURATION);
-  }
+  delay(GIRAR_DURATION);  // ← único control: ajusta GIRAR_DURATION y SPEED_GIRO
 
   stopMotors();
-  yaw += toLeft ? -turned : turned;
+  delay(200);  // inercia mecánica
 
-  // Corrección fina
-  if (gyroOK) {
-    float error = targetDeg - turned;
-    Serial.print("[GIRO] Girado: "); Serial.print(turned, 1);
-    Serial.print("°  error: ");      Serial.print(error, 1); Serial.println("°");
-
-    if (fabs(error) > 8.0f) {
-      Serial.print("[CORREC] error="); Serial.print(error, 1);
-      Serial.print("° → girando ");
-      // error>0: faltó ángulo → continuar en misma dirección
-      // error<0: se pasó   → revertir dirección
-      bool corrLeft = (error > 0) ? toLeft : !toLeft;
-      Serial.println(corrLeft ? "IZQ" : "DER");
-      if (corrLeft) spinLeft(SPEED_CORREC);
-      else          spinRight(SPEED_CORREC);
-      delay((int)(fabs(error) * 4));
-      stopMotors();
-      delay(50);
-    } else {
-      Serial.println("[CORREC] Dentro de tolerancia (<8°)");
-    }
-  }
-
+  // Actualizar heading y yaw (estimado, no medido)
+  yaw += toLeft ? -90.0f : 90.0f;
   currentHeading = toLeft ? (currentHeading + 3) % 4 : (currentHeading + 1) % 4;
+
   Serial.print("[GIRO] Heading final: "); Serial.print(currentHeading);
-  Serial.print("  yaw total: "); Serial.println(yaw, 1);
+  Serial.print("  yaw estimado: ");       Serial.println(yaw, 1);
 }
 
 // ========== COMANDOS ==========
@@ -287,40 +245,23 @@ void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
 
 // ========== SETUP / LOOP ==========
 unsigned long lastStatus = 0;
-
-void scanI2C() {
-  Serial.println("[I2C] Escaneando bus...");
-  int found = 0;
-  for (uint8_t addr = 1; addr < 127; addr++) {
-    Wire.beginTransmission(addr);
-    uint8_t err = Wire.endTransmission();
-    if (err == 0) {
-      Serial.print("[I2C] Dispositivo en 0x");
-      if (addr < 16) Serial.print("0");
-      Serial.println(addr, HEX);
-      found++;
-    }
-  }
-  if (found == 0) Serial.println("[I2C] Ningún dispositivo encontrado");
-  else { Serial.print("[I2C] Total: "); Serial.println(found); }
-}
+unsigned long lastTelem  = 0;
 
 void setup() {
   Serial.begin(115200);
-  delay(5000);  // 5s para abrir el serial monitor
-  Serial.println("\n=== ESP8266 Carro 2 Motores + Gyro ===");
+  delay(5000);
+  Serial.println("\n=== ESP8266 Carro 2 Motores ===");
 
-  // Gyro PRIMERO — antes de que initMotors toque los pines
-  Wire.begin(4, 5);  // GPIO4=SDA(D2), GPIO5=SCL(D1)
+  Wire.begin(4, 5);
   delay(100);
-  scanI2C();         // ver qué hay en el bus antes de init
+  scanI2C();
   initGyro();
   if (gyroOK) calibrateGyro();
 
-  initMotors();      // motores después del gyro
+  initMotors();
 
-  Serial.print("[GYRO] Estado final: ");
-  Serial.println(gyroOK ? "ACTIVO ✓" : "NO DISPONIBLE — usando delays fijos");
+  Serial.print("[GYRO] Estado: ");
+  Serial.println(gyroOK ? "ACTIVO (solo telemetría)" : "NO DISPONIBLE");
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP(SSID, PASSWORD);
@@ -335,7 +276,11 @@ void setup() {
 void loop() {
   webSocket.loop();
 
-  // Status gyro cada 3 segundos
+  if (millis() - lastTelem > 1000) {
+    lastTelem = millis();
+    sendGyroTelemetry();
+  }
+
   if (millis() - lastStatus > 3000) {
     lastStatus = millis();
     if (gyroOK) {
