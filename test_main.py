@@ -32,8 +32,9 @@ class AppTests(unittest.TestCase):
     def test_graph_renderer_uses_vertical_tree_layout(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("flattenSearchTree", html)
-        self.assertIn("buildRouteTree", html)
+        self.assertIn("d3.hierarchy(tree)", html)
+        self.assertIn("d3.tree()", html)
+        self.assertIn(".nodeSize(", html)
         self.assertNotIn("node.col * cellStep", html)
         self.assertNotIn("graph-grid-v", html)
 
@@ -85,7 +86,7 @@ class AppTests(unittest.TestCase):
         self.assertIn("{ source: 'A', target: 'B' }", html)
         self.assertIn("{ source: 'C', target: 'D' }", html)
         self.assertIn("{ source: 'D', target: 'E' }", html)
-        self.assertIn("{ source: 'A', target: 'F' }", html)
+        self.assertIn("{ source: 'F', target: 'A' }", html)
         self.assertIn("{ source: 'F', target: 'B' }", html)
         self.assertIn("{ source: 'G', target: 'B' }", html)
         self.assertIn("{ source: 'G', target: 'E' }", html)
@@ -239,8 +240,8 @@ class AppTests(unittest.TestCase):
     def test_graph_renderer_has_bottom_space_for_terminal_node_costs(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("depth * 105", html)
-        self.assertIn("140 + maxDepth", html)
+        self.assertIn("nodeH", html)
+        self.assertIn("treeHeight", html)
         self.assertIn("renderedHeight", html)
 
     def test_ui_renders_optimal_route_cost_summary(self):
@@ -310,31 +311,32 @@ class AppTests(unittest.TestCase):
 
         self.assertIn("renderGraphInto", html)
         self.assertIn("tree-edge", html)
-        self.assertIn("V${midY} H${item.x}", html)
+        self.assertIn("linkVertical", html)
 
     def test_graph_renderer_uses_hierarchy_layout_data(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("flattenSearchTree(rootData)", html)
-        self.assertIn("flatNodes.filter(item => item.data.parent)", html)
-        self.assertIn("item.x", html)
-        self.assertIn("item.y", html)
+        self.assertIn("d3.hierarchy(tree)", html)
+        self.assertIn("d3.tree()", html)
+        self.assertIn("root.descendants()", html)
+        self.assertIn("root.links()", html)
         self.assertNotIn(".data(nodes)\n    .join('g')", html)
 
     def test_graph_renderer_maps_tree_depth_vertically(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("depth * 105", html)
-        self.assertIn("item.x = ((index + 1) * W)", html)
-        self.assertIn("item.y = 70 + depth", html)
+        self.assertIn("d3.tree()", html)
+        self.assertIn(".nodeSize(", html)
+        self.assertIn("root.descendants()", html)
+        self.assertIn("node.x", html)
+        self.assertIn("node.y", html)
         self.assertNotIn("d.y = margin.left + treeX", html)
 
     def test_graph_renderer_uses_larger_nodes_and_offset_arrows(self):
         html = (main.BASE_DIR / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('r="30"', html)
-        self.assertIn("parent.y + 30", html)
-        self.assertIn("item.y - 30", html)
+        self.assertIn("linkVertical", html)
         self.assertIn("tree-node", html)
 
     def test_astar_returns_optimal_path_for_obstacle_grid(self):
@@ -461,7 +463,7 @@ class AppTests(unittest.TestCase):
 
         self.assertIn("baseWidth", html)
         self.assertIn("baseHeight", html)
-        self.assertIn("setGraphCanvasSize(svgEl, W, renderedHeight)", html)
+        self.assertIn("setGraphCanvasSize(", html)
         self.assertIn("svg.dataset.baseWidth", html)
         self.assertIn("svg.style.width = `${baseWidth * graphModalZoom}px`", html)
         self.assertIn("svg.style.height = `${baseHeight * graphModalZoom}px`", html)

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Test D3 Tree</title>
+<script src="/static/d3.min.js?v=2"></script>
+<style>
+  body { background: #11191f; color: #d8e2e6; font-family: monospace; padding: 20px; }
+  #test-result { margin-top: 20px; padding: 20px; background: #182226; border: 1px solid #3a4a50; }
+  .ok { color: #00b8a9; }
+  .err { color: #e05a47; }
+</style>
+</head>
+<body>
+<h2>Test D3.js Tree Rendering</h2>
+<div id="status">Cargando...</div>
+<div id="test-result"></div>
+<svg id="test-svg" width="800" height="400" style="border: 1px solid #3a4a50; margin-top: 20px;"></svg>
+
+<script>
+const status = document.getElementById('status');
+const result = document.getElementById('test-result');
+
+// Test 1: Verificar que D3 existe
+if (typeof d3 === 'undefined') {
+  status.innerHTML = '<span class="err">ERROR: D3.js no cargado</span>';
+} else {
+  status.innerHTML = '<span class="ok">OK: D3.js cargado</span>';
+  
+  // Test 2: Verificar funciones necesarias
+  const needed = ['hierarchy', 'tree', 'linkVertical', 'extent', 'max'];
+  const missing = needed.filter(fn => typeof d3[fn] === 'undefined');
+
+  // Verificar específicamente que d3.tree() devuelve un objeto con nodeSize
+  const treeLayout = d3.tree();
+  const hasNodeSize = typeof treeLayout.nodeSize === 'function';
+
+  if (missing.length > 0) {
+    result.innerHTML = `<span class="err">Funciones faltantes: ${missing.join(', ')}</span>`;
+  } else if (!hasNodeSize) {
+    result.innerHTML = `<span class="err">d3.tree() existe pero no tiene .nodeSize() — probablemente caché del navegador con versión antigua.<br>Ctrl+F5 para forzar recarga.</span>`;
+  } else {
+    result.innerHTML = '<span class="ok">Todas las funciones D3 disponibles (incluyendo d3.tree().nodeSize)</span>';
+    
+    // Test 3: Renderizar árbol simple
+    const testTree = {
+      id: "0-0", number: 1, cost: 1, g: 0, h: 8, f: 8,
+      inPath: true, isStart: true, isEnd: false,
+      children: [
+        { id: "1-0", number: 2, cost: 1, g: 1, h: 7, f: 8, inPath: false, isStart: false, isEnd: false, children: [] },
+        { id: "0-1", number: 3, cost: 1, g: 1, h: 7, f: 8, inPath: true, isStart: false, isEnd: false, 
+          children: [
+            { id: "0-2", number: 4, cost: 1, g: 2, h: 6, f: 8, inPath: true, isStart: false, isEnd: false, children: [] }
+          ]
+        }
+      ]
+    };
+    
+    try {
+      const root = d3.hierarchy(testTree);
+      d3.tree().nodeSize([90, 120]).separation((a, b) => 1.2)(root);
+      
+      const svg = document.getElementById('test-svg');
+      const dx = 400;
+      const dy = 40;
+      
+      const linkGen = d3.linkVertical().x(d => d.x + dx).y(d => d.y + dy);
+      
+      // Dibujar enlaces
+      root.links().forEach(link => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', linkGen(link));
+        path.setAttribute('stroke', '#65777f');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+      });
+      
+      // Dibujar nodos
+      root.descendants().forEach(node => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${node.x + dx},${node.y + dy})`);
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '30');
+        circle.setAttribute('fill', '#1f2d33');
+        circle.setAttribute('stroke', '#3a4a50');
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+        
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#d8e2e6');
+        text.setAttribute('font-size', '14');
+        text.setAttribute('font-family', 'monospace');
+        text.textContent = node.data.number;
+        g.appendChild(text);
+        
+        svg.appendChild(g);
+      });
+      
+      result.innerHTML += '<br><span class="ok">Árbol renderizado correctamente!</span>';
+    } catch (e) {
+      result.innerHTML += `<br><span class="err">Error renderizando: ${e.message}</span>`;
+      console.error(e);
+    }
+  }
+}
+</script>
+</body>
+</html>
