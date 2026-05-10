@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Car A* Controller</title>
-<script src="/static/d3.min.js"></script>
+<script src="/static/d3.min.js?v=2"></script>
 <style>
   :root {
     --bg: #11191f;
@@ -462,6 +462,85 @@
     letter-spacing: 1px;
   }
 
+  /* ── Gyro Telemetry ── */
+  #gyro-data {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #0d1418;
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    font-family: var(--mono);
+  }
+
+  .gyro-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .gyro-label {
+    color: var(--text-dim);
+    min-width: 90px;
+  }
+
+  .gyro-value {
+    color: var(--accent);
+    font-weight: 700;
+    text-align: right;
+    flex: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gyro-unit {
+    color: var(--text-dim);
+    font-size: 0.62rem;
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .gyro-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  .gyro-turn .gyro-label { color: var(--yellow); }
+  .gyro-turn .gyro-value { color: var(--yellow); }
+
+  .gyro-badge {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+  }
+
+  .gyro-badge.on {
+    background: rgba(0,184,169,0.15);
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+
+  .gyro-badge.off {
+    background: rgba(224,90,71,0.15);
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+
+  .gyro-status {
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
   #toast {
     position: fixed; bottom: 24px; right: 24px;
     padding: 12px 20px;
@@ -489,6 +568,7 @@
   <div class="logo">CARRO<span>_</span>A* ALGORITMO DE BUSQUEDA</div>
   <div class="header-actions">
     <a class="nav-link" href="/linea">SEGUIDOR DE LINEA</a>
+    <a class="nav-link" href="/control">CONTROL MANUAL</a>
     <div id="status-badge">
       <div id="status-dot"></div>
       <span id="status-text">ESP32 DESCONECTADO</span>
@@ -537,6 +617,31 @@
           ENVIAR AL CARRO ▶
         </button>
       </div>
+    </div>
+
+    <!-- Gyro Telemetry Panel -->
+    <div class="panel" id="gyro-panel">
+      <div class="panel-header">
+        <div class="panel-title">// Datos del Giroscopio</div>
+        <div id="gyro-badge" class="gyro-badge off">OFF</div>
+      </div>
+      <div id="gyro-data">
+        <div class="gyro-row">
+          <span class="gyro-label">Velocidad Z</span>
+          <span class="gyro-value" id="gyro-gz">—</span>
+          <span class="gyro-unit">°/s</span>
+        </div>
+        <div class="gyro-row">
+          <span class="gyro-label">Yaw acumulado</span>
+          <span class="gyro-value" id="gyro-yaw">—</span>
+          <span class="gyro-unit">°</span>
+        </div>
+        <div class="gyro-row">
+          <span class="gyro-label">Heading</span>
+          <span class="gyro-value" id="gyro-heading">—</span>
+        </div>
+      </div>
+      <div id="gyro-status" class="gyro-status">Esperando telemetría…</div>
     </div>
 
     <!-- Optimal Route Panel -->
@@ -882,30 +987,6 @@ function clearGraph() {
   svg.style.height = '760px';
 }
 
-function buildRouteTree(nodes, edges) {
-  if (!nodes.length) return null;
-
-  const nodeById = new Map(nodes.map(node => [node.id, { ...node, children: [] }]));
-  const childIds = new Set();
-
-  edges.forEach(edge => {
-    const parent = nodeById.get(edge.source);
-    const child = nodeById.get(edge.target);
-    if (!parent || !child) return;
-    child.edgeInPath = edge.inPath;
-    parent.children.push(child);
-    childIds.add(edge.target);
-  });
-
-  return [...nodeById.values()].find(node => !childIds.has(node.id)) || nodeById.values().next().value;
-}
-
-function flattenSearchTree(node, depth = 0, items = []) {
-  items.push({ data: node, depth });
-  (node.children || []).forEach(child => flattenSearchTree(child, depth + 1, items));
-  return items;
-}
-
 function setGraphCanvasSize(svgEl, width, height) {
   svgEl.dataset.baseWidth = width;
   svgEl.dataset.baseHeight = height;
@@ -913,70 +994,98 @@ function setGraphCanvasSize(svgEl, width, height) {
   svgEl.style.height = `${height}px`;
 }
 
-function renderGraphInto(svgId, { nodes, edges }, options = {}) {
+function renderGraphInto(svgId, { nodes, edges, tree }, options = {}) {
   const svgEl = document.getElementById(svgId);
   svgEl.innerHTML = '';
 
-  const rootData = buildRouteTree(nodes, edges);
-  if (!rootData) {
+  console.log('[renderGraphInto] svgId:', svgId, 'has tree:', !!tree);
+
+  if (!tree) {
     svgEl.innerHTML = `<text x="50%" y="50%" text-anchor="middle" font-family="'Share Tech Mono'"
       font-size="11" fill="#4a6080" letter-spacing="2">— SIN DATOS —</text>`;
+    console.log('[renderGraphInto] No tree data');
     return;
   }
 
-  const W = options.width || 1200;
-  const H = options.height || 520;
+  try {
+    const W = options.width || 1200;
+    const nodeW = 90;  // ancho reservado por nodo
+    const nodeH = 120; // alto reservado por nivel
 
-  const flatNodes = flattenSearchTree(rootData);
-  const levels = new Map();
-  flatNodes.forEach(item => {
-    if (!levels.has(item.depth)) levels.set(item.depth, []);
-    levels.get(item.depth).push(item);
-  });
+    // Crear jerarquía D3
+    const root = d3.hierarchy(tree);
+    console.log('[renderGraphInto] D3 hierarchy created, descendants:', root.descendants().length);
 
-  const maxDepth = Math.max(...flatNodes.map(item => item.depth));
-  const renderedHeight = Math.max(H, 140 + maxDepth * 105);
+    // Aplicar layout de árbol con tamaño fijo por nodo y separación controlada
+    const treeLayout = d3.tree()
+      .nodeSize([nodeW, nodeH])
+      .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.5));
+    treeLayout(root);
+    console.log('[renderGraphInto] D3 tree layout applied');
 
-  svgEl.setAttribute('viewBox', `0 0 ${W} ${renderedHeight}`);
-  if (options.fixedCanvas) {
-    setGraphCanvasSize(svgEl, W, renderedHeight);
-  } else {
-    svgEl.style.height = `${renderedHeight}px`;
-  }
+    // Centrar el árbol horizontalmente y calcular dimensiones reales
+    const descendants = root.descendants();
+    const xExtent = d3.extent(descendants, d => d.x);
+    const yExtent = d3.extent(descendants, d => d.y);
+    console.log('[renderGraphInto] xExtent:', xExtent, 'yExtent:', yExtent);
 
-  levels.forEach(items => items.sort((a, b) => String(a.data.id).localeCompare(String(b.data.id))));
-  const positioned = new Map();
-  levels.forEach((items, depth) => {
-    items.forEach((item, index) => {
-      item.x = ((index + 1) * W) / (items.length + 1);
-      item.y = 70 + depth * 105;
-      positioned.set(item.data.id, item);
+    const treeWidth = xExtent[1] - xExtent[0] + nodeW;
+    const treeHeight = yExtent[1] + nodeH + 40;
+    const dx = (Math.max(W, treeWidth) / 2) - ((xExtent[0] + xExtent[1]) / 2);
+    const dy = 40;
+
+    const renderedHeight = Math.max(options.height || 520, treeHeight);
+
+    svgEl.setAttribute('viewBox', `0 0 ${Math.max(W, treeWidth)} ${renderedHeight}`);
+    if (options.fixedCanvas) {
+      setGraphCanvasSize(svgEl, Math.max(W, treeWidth), renderedHeight);
+    } else {
+      svgEl.style.height = `${renderedHeight}px`;
+    }
+
+    // Construir set de aristas en el camino óptimo para resaltar
+    const pathEdgeSet = new Set();
+    edges.filter(e => e.inPath).forEach(e => {
+      pathEdgeSet.add(`${e.source}→${e.target}`);
     });
-  });
 
-  const edgesHTML = flatNodes.filter(item => item.data.parent).map(item => {
-    const parent = positioned.get(item.data.parent);
-    const midY = (parent.y + item.y) / 2;
-    const edgeClass = `tree-edge ${item.data.edgeInPath ? 'path' : ''}`;
-    return `<path class="${edgeClass}" d="M${parent.x},${parent.y + 30} V${midY} H${item.x} V${item.y - 30}"/>`;
-  }).join('');
+    // Generador de enlaces curvos verticales nativo de D3
+    const linkGen = d3.linkVertical()
+      .x(d => d.x + dx)
+      .y(d => d.y + dy);
 
-  const nodesHTML = flatNodes.map(item => {
-    const nodeClass = [
-      'tree-node',
-      item.data.inPath ? 'path' : '',
-      item.data.isStart ? 'start' : '',
-      item.data.isEnd ? 'end' : '',
-    ].filter(Boolean).join(' ');
-    return `<g class="${nodeClass}" transform="translate(${item.x},${item.y})">
-      <circle r="30"></circle>
-      <text class="number-text" y="-10">${item.data.number}</text>
-      <text class="node-cost" y="10">c:${item.data.cost}</text>
-      <text class="small" y="26">g${item.data.g} h${item.data.h} f${item.data.f}</text>
-    </g>`;
-  }).join('');
+    // Renderizar enlaces
+    const links = root.links();
+    const edgesHTML = links.map(link => {
+      const sourceId = link.source.data.id;
+      const targetId = link.target.data.id;
+      const inPath = pathEdgeSet.has(`${sourceId}→${targetId}`);
+      const edgeClass = `tree-edge ${inPath ? 'path' : ''}`;
+      return `<path class="${edgeClass}" d="${linkGen(link)}"/>`;
+    }).join('');
 
-  svgEl.innerHTML = `<g class="graph-content">${edgesHTML}${nodesHTML}</g>`;
+    // Renderizar nodos
+    const nodesHTML = descendants.map(node => {
+      const nodeClass = [
+        'tree-node',
+        node.data.inPath ? 'path' : '',
+        node.data.isStart ? 'start' : '',
+        node.data.isEnd ? 'end' : '',
+      ].filter(Boolean).join(' ');
+      return `<g class="${nodeClass}" transform="translate(${node.x + dx},${node.y + dy})">
+        <circle r="30"></circle>
+        <text class="number-text" y="-10">${node.data.number}</text>
+        <text class="node-cost" y="10">c:${node.data.cost}</text>
+        <text class="small" y="26">g${node.data.g} h${node.data.h} f${node.data.f}</text>
+      </g>`;
+    }).join('');
+
+    svgEl.innerHTML = `<g class="graph-content">${edgesHTML}${nodesHTML}</g>`;
+    console.log('[renderGraphInto] Graph rendered successfully');
+  } catch (err) {
+    console.error('[renderGraphInto] Error:', err);
+    svgEl.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#e05a47" font-size="14">Error: ${err.message}</text>`;
+  }
 }
 
 function renderGraph(graph) {
@@ -1034,6 +1143,64 @@ async function checkStatus() {
   } catch {}
 }
 
+// ─── Gyro Telemetry WebSocket ─────────────────────────────────────────────────
+let gyroWs = null;
+let gyroReconnectTimer = null;
+
+function updateGyroUI(data) {
+  const badge = document.getElementById('gyro-badge');
+  const status = document.getElementById('gyro-status');
+
+  if (data.gyroOK) {
+    badge.textContent = 'ON';
+    badge.className = 'gyro-badge on';
+    status.textContent = 'Telemetría en tiempo real';
+  } else {
+    badge.textContent = 'OFF';
+    badge.className = 'gyro-badge off';
+    status.textContent = 'Giroscopio no disponible';
+  }
+
+  document.getElementById('gyro-gz').textContent     = typeof data.gz       === 'number' ? data.gz.toFixed(3)      : '—';
+  document.getElementById('gyro-yaw').textContent    = typeof data.yaw      === 'number' ? data.yaw.toFixed(1)     : '—';
+  document.getElementById('gyro-heading').textContent = typeof data.heading === 'number' ? ['N','E','S','O'][data.heading] ?? '—' : '—';
+}
+
+function connectGyroWS() {
+  if (gyroReconnectTimer) { clearTimeout(gyroReconnectTimer); gyroReconnectTimer = null; }
+  if (gyroWs) { try { gyroWs.close(); } catch {} }
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws/telemetry`;
+
+  gyroWs = new WebSocket(url);
+
+  gyroWs.onopen = () => {
+    console.log('[GYRO WS] Conectado');
+    document.getElementById('gyro-status').textContent = 'Conectado — esperando datos…';
+  };
+
+  gyroWs.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data.type === 'gyro') updateGyroUI(data);
+    } catch (e) {
+      console.warn('[GYRO WS] JSON inválido', ev.data);
+    }
+  };
+
+  gyroWs.onclose = () => {
+    console.log('[GYRO WS] Desconectado — reintentando en 3s');
+    document.getElementById('gyro-status').textContent = 'Reconectando…';
+    gyroReconnectTimer = setTimeout(connectGyroWS, 3000);
+  };
+
+  gyroWs.onerror = (err) => {
+    console.error('[GYRO WS] Error', err);
+    document.getElementById('gyro-status').textContent = 'Error de conexión';
+  };
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
 function toast(msg, type = 'info') {
@@ -1048,6 +1215,7 @@ function toast(msg, type = 'info') {
 buildGrid();
 setInterval(checkStatus, 3000);
 checkStatus();
+connectGyroWS();
 </script>
 </body>
 </html>
