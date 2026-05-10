@@ -6,11 +6,27 @@ from pydantic import BaseModel
 from pathlib import Path
 import heapq
 import json
+import threading
+from datetime import datetime
 
 app = FastAPI(title="Car A* Controller")
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# ─── Logging de telemetría del giroscopio ─────────────────────────────────────
+GYRO_LOG_FILE = BASE_DIR / "gyro_telemetry.log"
+_gyro_log_lock = threading.Lock()
+
+
+def log_gyro_telemetry(data: dict) -> None:
+    """Guarda un snapshot de telemetría del giroscopio en un único archivo .log."""
+    now = datetime.now()
+    entry = {"timestamp": now.isoformat(), **data}
+    with _gyro_log_lock:
+        with open(GYRO_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
 
 # ─── WebSocket manager para ESP32 ─────────────────────────────────────────────
 class ESP32Manager:
@@ -33,6 +49,33 @@ class ESP32Manager:
         return False
 
 esp32 = ESP32Manager()
+
+# ─── WebSocket manager para telemetría (frontend clients) ─────────────────────
+class TelemetryManager:
+    def __init__(self):
+        self.clients: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.clients.append(ws)
+        print(f"Cliente telemetría conectado (total: {len(self.clients)})")
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.clients:
+            self.clients.remove(ws)
+        print(f"Cliente telemetría desconectado (total: {len(self.clients)})")
+
+    async def broadcast(self, message: str):
+        disconnected = []
+        for client in self.clients:
+            try:
+                await client.send_text(message)
+            except Exception:
+                disconnected.append(client)
+        for client in disconnected:
+            self.disconnect(client)
+
+telemetry = TelemetryManager()
 
 # ─── Modelos ──────────────────────────────────────────────────────────────────
 class GridRequest(BaseModel):
@@ -189,6 +232,10 @@ async def index(request: Request):
 async def linea(request: Request):
     return templates.TemplateResponse(request, "linea.html")
 
+@app.get("/control", response_class=HTMLResponse)
+async def control(request: Request):
+    return templates.TemplateResponse(request, "control.html")
+
 @app.post("/api/solve")
 async def solve(data: GridRequest):
     validation_error = validate_grid_request(data.grid, data.start, data.end)
@@ -236,13 +283,35 @@ async def solve(data: GridRequest):
         for child, parent in came_from.items()
     ]
 
+    # Construir árbol jerárquico recursivo para d3.hierarchy
+    def build_tree_node(point):
+        nid = f"{point[0]}-{point[1]}"
+        det = node_details[point]
+        children = [child for child, parent in came_from.items() if parent == point]
+        return {
+            "id": nid,
+            "row": point[0],
+            "col": point[1],
+            "number": point[0] * len(data.grid[0]) + point[1] + 1,
+            "cost": det["cost"],
+            "g": det["g"],
+            "h": det["h"],
+            "f": det["f"],
+            "inPath": point in path_set,
+            "isStart": point == start_point,
+            "isEnd": point == end_point,
+            "children": [build_tree_node(child) for child in children],
+        }
+
+    tree = build_tree_node(start_point)
+
     return {
         "success": True,
         "path": path,
         "explored": explored,
         "commands": commands,
         "totalCost": total_cost,
-        "graph": {"nodes": nodes, "edges": edges},
+        "graph": {"nodes": nodes, "edges": edges, "tree": tree},
     }
 
 @app.post("/api/send")
@@ -264,5 +333,21 @@ async def websocket_car(ws: WebSocket):
         while True:
             data = await ws.receive_text()
             print(f"ESP32 dice: {data}")
+            try:
+                payload = json.loads(data)
+                if payload.get("type") == "gyro":
+                    log_gyro_telemetry(payload)
+                    await telemetry.broadcast(data)
+            except json.JSONDecodeError:
+                pass
     except WebSocketDisconnect:
         esp32.disconnect()
+
+@app.websocket("/ws/telemetry")
+async def websocket_telemetry(ws: WebSocket):
+    await telemetry.connect(ws)
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        telemetry.disconnect(ws)
