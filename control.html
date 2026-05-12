@@ -515,15 +515,17 @@ async function startCommand(cmd) {
 
   activeCommand = cmd;
 
-  const batch = Array(BATCH_SIZE).fill(cmd);
-  const ok = await sendCommands(batch);
+  // Primer envío: solo 1 comando para pulsaciones cortas
+  const ok = await sendCommands([cmd]);
   if (!ok) {
     activeCommand = null;
     return;
   }
-  totalSent += BATCH_SIZE;
-  addHistory(cmd, BATCH_SIZE);
+  totalSent += 1;
+  addHistory(cmd, 1);
 
+  // Intervalo periódico: lotes de 2 para movimiento fluido al mantener pulsado
+  const batch = Array(BATCH_SIZE).fill(cmd);
   batchInterval = setInterval(async () => {
     const ok2 = await sendCommands(batch);
     if (!ok2) {
