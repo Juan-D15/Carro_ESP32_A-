@@ -136,8 +136,8 @@ http://localhost:8000
 
 | Control | Descripción |
 |--------|-------------|
-| **▲ ADELANTE** | Mantiene pulsado para avanzar (lotes de 2 comandos / 1.2 s) |
-| **▼ ATRAS** | Mantiene pulsado para retroceder |
+| **▲ ADELANTE** | Primera pulsación = 1 comando; mantener = lotes de 2 cada 1.2 s |
+| **▼ ATRAS** | Primera pulsación = 1 comando; mantener = lotes de 2 cada 1.2 s |
 | **◄ IZQUIERDA** | Gira 90° a la izquierda |
 | **► DERECHA** | Gira 90° a la derecha |
 | **■ STOP** | Detiene inmediatamente |
