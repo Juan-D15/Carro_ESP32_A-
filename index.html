@@ -462,85 +462,6 @@
     letter-spacing: 1px;
   }
 
-  /* ── Gyro Telemetry ── */
-  #gyro-data {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: #0d1418;
-    border: 1px solid var(--border);
-    padding: 10px 12px;
-    font-family: var(--mono);
-  }
-
-  .gyro-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 0.72rem;
-    line-height: 1.4;
-  }
-
-  .gyro-label {
-    color: var(--text-dim);
-    min-width: 90px;
-  }
-
-  .gyro-value {
-    color: var(--accent);
-    font-weight: 700;
-    text-align: right;
-    flex: 1;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .gyro-unit {
-    color: var(--text-dim);
-    font-size: 0.62rem;
-    min-width: 28px;
-    text-align: right;
-  }
-
-  .gyro-divider {
-    height: 1px;
-    background: var(--border);
-    margin: 4px 0;
-  }
-
-  .gyro-turn .gyro-label { color: var(--yellow); }
-  .gyro-turn .gyro-value { color: var(--yellow); }
-
-  .gyro-badge {
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    letter-spacing: 1px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    text-transform: uppercase;
-  }
-
-  .gyro-badge.on {
-    background: rgba(0,184,169,0.15);
-    color: var(--green);
-    border: 1px solid var(--green);
-  }
-
-  .gyro-badge.off {
-    background: rgba(224,90,71,0.15);
-    color: var(--red);
-    border: 1px solid var(--red);
-  }
-
-  .gyro-status {
-    margin-top: 8px;
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    color: var(--text-dim);
-    text-align: center;
-    letter-spacing: 1px;
-  }
-
   #toast {
     position: fixed; bottom: 24px; right: 24px;
     padding: 12px 20px;
@@ -617,31 +538,6 @@
           ENVIAR AL CARRO ▶
         </button>
       </div>
-    </div>
-
-    <!-- Gyro Telemetry Panel -->
-    <div class="panel" id="gyro-panel">
-      <div class="panel-header">
-        <div class="panel-title">// Datos del Giroscopio</div>
-        <div id="gyro-badge" class="gyro-badge off">OFF</div>
-      </div>
-      <div id="gyro-data">
-        <div class="gyro-row">
-          <span class="gyro-label">Velocidad Z</span>
-          <span class="gyro-value" id="gyro-gz">—</span>
-          <span class="gyro-unit">°/s</span>
-        </div>
-        <div class="gyro-row">
-          <span class="gyro-label">Yaw acumulado</span>
-          <span class="gyro-value" id="gyro-yaw">—</span>
-          <span class="gyro-unit">°</span>
-        </div>
-        <div class="gyro-row">
-          <span class="gyro-label">Heading</span>
-          <span class="gyro-value" id="gyro-heading">—</span>
-        </div>
-      </div>
-      <div id="gyro-status" class="gyro-status">Esperando telemetría…</div>
     </div>
 
     <!-- Optimal Route Panel -->
@@ -751,17 +647,20 @@ function handleCell(r, c) {
     walls.delete(key);
     cell.classList.remove('wall', 'end');
     cell.classList.add('start');
+    saveState();
   } else if (mode === 'end') {
     if (endCell) getCell(...endCell).classList.remove('end');
     endCell = [r, c];
     walls.delete(key);
     cell.classList.remove('wall', 'start');
     cell.classList.add('end');
+    saveState();
   } else if (mode === 'wall') {
     if (!cell.classList.contains('start') && !cell.classList.contains('end')) {
       walls.add(key);
       cell.classList.add('wall');
       cell.classList.remove('path', 'explored');
+      saveState();
     }
   } else if (mode === 'clear') {
     walls.delete(key);
@@ -769,6 +668,7 @@ function handleCell(r, c) {
     if (endCell   && endCell[0]==r   && endCell[1]==c)   endCell   = null;
     cell.className = 'cell';
     cell.innerHTML = renderCellContent(r, c);
+    saveState();
   }
 }
 
@@ -788,6 +688,7 @@ function resetGrid() {
   document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="empty-msg">— SIN RUTA —</div>';
   document.getElementById('btn-send').disabled = true;
   clearGraph();
+  localStorage.removeItem('carroesp_index_state');
 }
 
 function randomInt(max) {
@@ -870,16 +771,17 @@ async function loadExample() {
       cell.classList.add('path');
     });
 
-    currentPath = data.path;
-    currentCommands = data.commands;
-    renderCommands(data.commands);
-    renderCostMetrics(data.graph.nodes);
-    renderOptimalRoute(data.path, data.graph.nodes, data.totalCost);
-    renderGraph(data.graph);
-    document.getElementById('btn-send').disabled = false;
-    document.getElementById('total-cost').textContent = `Costo total: ${data.totalCost}`;
-    toast(`Ejemplo cargado — ${data.path.length} celdas`, 'ok');
-    return;
+  currentPath = data.path;
+  currentCommands = data.commands;
+  renderCommands(data.commands);
+  renderCostMetrics(data.graph.nodes);
+  renderOptimalRoute(data.path, data.graph.nodes, data.totalCost);
+  renderGraph(data.graph);
+  document.getElementById('btn-send').disabled = false;
+  document.getElementById('total-cost').textContent = `Costo total: ${data.totalCost}`;
+  toast(`Ejemplo cargado — ${data.path.length} celdas`, 'ok');
+  saveState();
+  return;
   }
 
   toast('No se pudo generar un ejemplo con ruta', 'err');
@@ -934,6 +836,7 @@ async function solve() {
   document.getElementById('btn-send').disabled = false;
   document.getElementById('total-cost').textContent = `Costo total: ${data.totalCost}`;
   toast(`Ruta encontrada — ${data.path.length} celdas, ${data.commands.length} comandos`, 'ok');
+  saveState();
 }
 
 function renderCostMetrics(nodes) {
@@ -1143,64 +1046,6 @@ async function checkStatus() {
   } catch {}
 }
 
-// ─── Gyro Telemetry WebSocket ─────────────────────────────────────────────────
-let gyroWs = null;
-let gyroReconnectTimer = null;
-
-function updateGyroUI(data) {
-  const badge = document.getElementById('gyro-badge');
-  const status = document.getElementById('gyro-status');
-
-  if (data.gyroOK) {
-    badge.textContent = 'ON';
-    badge.className = 'gyro-badge on';
-    status.textContent = 'Telemetría en tiempo real';
-  } else {
-    badge.textContent = 'OFF';
-    badge.className = 'gyro-badge off';
-    status.textContent = 'Giroscopio no disponible';
-  }
-
-  document.getElementById('gyro-gz').textContent     = typeof data.gz       === 'number' ? data.gz.toFixed(3)      : '—';
-  document.getElementById('gyro-yaw').textContent    = typeof data.yaw      === 'number' ? data.yaw.toFixed(1)     : '—';
-  document.getElementById('gyro-heading').textContent = typeof data.heading === 'number' ? ['N','E','S','O'][data.heading] ?? '—' : '—';
-}
-
-function connectGyroWS() {
-  if (gyroReconnectTimer) { clearTimeout(gyroReconnectTimer); gyroReconnectTimer = null; }
-  if (gyroWs) { try { gyroWs.close(); } catch {} }
-
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const url = `${proto}//${location.host}/ws/telemetry`;
-
-  gyroWs = new WebSocket(url);
-
-  gyroWs.onopen = () => {
-    console.log('[GYRO WS] Conectado');
-    document.getElementById('gyro-status').textContent = 'Conectado — esperando datos…';
-  };
-
-  gyroWs.onmessage = (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      if (data.type === 'gyro') updateGyroUI(data);
-    } catch (e) {
-      console.warn('[GYRO WS] JSON inválido', ev.data);
-    }
-  };
-
-  gyroWs.onclose = () => {
-    console.log('[GYRO WS] Desconectado — reintentando en 3s');
-    document.getElementById('gyro-status').textContent = 'Reconectando…';
-    gyroReconnectTimer = setTimeout(connectGyroWS, 3000);
-  };
-
-  gyroWs.onerror = (err) => {
-    console.error('[GYRO WS] Error', err);
-    document.getElementById('gyro-status').textContent = 'Error de conexión';
-  };
-}
-
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
 function toast(msg, type = 'info') {
@@ -1212,10 +1057,87 @@ function toast(msg, type = 'info') {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+function saveState() {
+  try {
+    const state = {
+      startCell,
+      endCell,
+      walls: Array.from(walls),
+      costGrid,
+      currentPath,
+      currentCommands,
+      currentGraph,
+      mode,
+    };
+    localStorage.setItem('carroesp_index_state', JSON.stringify(state));
+  } catch {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('carroesp_index_state');
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    if (!state.startCell && !state.endCell && state.walls?.length === 0) return false;
+    startCell = state.startCell;
+    endCell = state.endCell;
+    walls = new Set(state.walls || []);
+    costGrid = state.costGrid || createCostGrid();
+    currentPath = state.currentPath || [];
+    currentCommands = state.currentCommands || [];
+    currentGraph = state.currentGraph || null;
+    mode = state.mode || 'start';
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function restoreUIFromState() {
+  if (startCell) {
+    const cell = getCell(...startCell);
+    if (cell) cell.classList.add('start');
+  }
+  if (endCell) {
+    const cell = getCell(...endCell);
+    if (cell) cell.classList.add('end');
+  }
+  walls.forEach(key => {
+    const [r, c] = key.split(',').map(Number);
+    const cell = getCell(r, c);
+    if (cell) cell.classList.add('wall');
+  });
+  if (currentPath.length > 0) {
+    currentPath.forEach(([r, c]) => {
+      const cell = getCell(r, c);
+      if (cell) {
+        cell.classList.remove('explored');
+        cell.classList.add('path');
+      }
+    });
+    renderCommands(currentCommands);
+    document.getElementById('btn-send').disabled = false;
+  }
+  if (currentGraph) {
+    renderGraph(currentGraph);
+  }
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+
 buildGrid();
+const hasState = loadState();
+if (hasState) {
+  restoreUIFromState();
+}
 setInterval(checkStatus, 3000);
 checkStatus();
-connectGyroWS();
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveState();
+});
+window.addEventListener('beforeunload', saveState);
 </script>
 </body>
 </html>

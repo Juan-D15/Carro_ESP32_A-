@@ -205,7 +205,7 @@
     font-family: var(--mono);
     font-size: 0.72rem;
     color: var(--text);
-    max-height: 220px;
+    max-height: 480px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -213,6 +213,7 @@
     background: #0d1418;
     border: 1px solid var(--border);
     padding: 8px;
+    min-height: 200px;
   }
 
   #commands-list::-webkit-scrollbar { width: 4px; }
@@ -227,6 +228,18 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    animation: cmdFadeIn 0.2s ease-out;
+  }
+  .cmd-item.fading {
+    animation: cmdFadeOut 0.6s ease-out forwards;
+  }
+  @keyframes cmdFadeIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes cmdFadeOut {
+    from { opacity: 1; transform: translateX(0); max-height: 32px; margin: 0; padding: 6px 9px; }
+    to   { opacity: 0; transform: translateX(8px); max-height: 0; margin: 0; padding: 0 9px; overflow: hidden; }
   }
   .cmd-item.ADELANTE { border-color: var(--accent); color: var(--accent); }
   .cmd-item.ATRAS    { border-color: var(--accent2); color: var(--accent2); }
@@ -262,60 +275,6 @@
   }
 
   .total-sent strong { color: var(--accent); }
-
-  #gyro-data {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: #0d1418;
-    border: 1px solid var(--border);
-    padding: 10px 12px;
-    font-family: var(--mono);
-  }
-
-  .gyro-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 0.72rem;
-    line-height: 1.4;
-  }
-
-  .gyro-label { color: var(--text-dim); min-width: 90px; }
-  .gyro-value { color: var(--accent); font-weight: 700; text-align: right; flex: 1; font-variant-numeric: tabular-nums; }
-  .gyro-unit  { color: var(--text-dim); font-size: 0.62rem; min-width: 28px; text-align: right; }
-  .gyro-divider { height: 1px; background: var(--border); margin: 4px 0; }
-
-  .gyro-badge {
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    letter-spacing: 1px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    text-transform: uppercase;
-  }
-
-  .gyro-badge.on {
-    background: rgba(0,184,169,0.15);
-    color: var(--green);
-    border: 1px solid var(--green);
-  }
-
-  .gyro-badge.off {
-    background: rgba(224,90,71,0.15);
-    color: var(--red);
-    border: 1px solid var(--red);
-  }
-
-  .gyro-status {
-    margin-top: 8px;
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    color: var(--text-dim);
-    text-align: center;
-    letter-spacing: 1px;
-  }
 
   #toast {
     position: fixed; bottom: 24px; right: 24px;
@@ -386,30 +345,6 @@
       <div class="total-sent">Total enviados: <strong id="total-sent">0</strong></div>
     </div>
 
-    <div class="panel" id="gyro-panel">
-      <div class="panel-header">
-        <div class="panel-title">// Datos del Giroscopio</div>
-        <div id="gyro-badge" class="gyro-badge off">OFF</div>
-      </div>
-      <div id="gyro-data">
-        <div class="gyro-row">
-          <span class="gyro-label">Velocidad Z</span>
-          <span class="gyro-value" id="gyro-gz">—</span>
-          <span class="gyro-unit">°/s</span>
-        </div>
-        <div class="gyro-row">
-          <span class="gyro-label">Yaw acumulado</span>
-          <span class="gyro-value" id="gyro-yaw">—</span>
-          <span class="gyro-unit">°</span>
-        </div>
-        <div class="gyro-row">
-          <span class="gyro-label">Heading</span>
-          <span class="gyro-value" id="gyro-heading">—</span>
-        </div>
-      </div>
-      <div id="gyro-status" class="gyro-status">Esperando telemetria…</div>
-    </div>
-
   </div>
 </main>
 
@@ -430,6 +365,7 @@ let activeCommand = null;
 let batchInterval = null;
 let totalSent = 0;
 let commandHistory = [];
+let clearAllTimer = null;
 
 function nowTime() {
   const d = new Date();
@@ -459,10 +395,52 @@ function renderCommands() {
   document.getElementById('total-sent').textContent = totalSent;
 }
 
+function clearAllCommands() {
+  const items = document.querySelectorAll('.cmd-item');
+  if (items.length === 0) {
+    commandHistory = [];
+    renderCommands();
+    saveState();
+    return;
+  }
+  items.forEach(el => el.classList.add('fading'));
+  const lastItem = items[items.length - 1];
+  lastItem.addEventListener('animationend', () => {
+    commandHistory = [];
+    renderCommands();
+    saveState();
+  }, { once: true });
+}
+
+function resetClearTimer() {
+  if (clearAllTimer) clearTimeout(clearAllTimer);
+  clearAllTimer = setTimeout(clearAllCommands, 3000);
+}
+
+function saveState() {
+  try {
+    const state = { totalSent };
+    localStorage.setItem('carroesp_control_state', JSON.stringify(state));
+  } catch {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('carroesp_control_state');
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    totalSent = state.totalSent || 0;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function addHistory(text, count = 1) {
   commandHistory.push({ time: nowTime(), text, count });
   if (commandHistory.length > 200) commandHistory.shift();
   renderCommands();
+  resetClearTimer();
 }
 
 async function checkStatus() {
@@ -619,63 +597,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-let gyroWs = null;
-let gyroReconnectTimer = null;
-
-function updateGyroUI(data) {
-  const badge = document.getElementById('gyro-badge');
-  const status = document.getElementById('gyro-status');
-
-  if (data.gyroOK) {
-    badge.textContent = 'ON';
-    badge.className = 'gyro-badge on';
-    status.textContent = 'Telemetria en tiempo real';
-  } else {
-    badge.textContent = 'OFF';
-    badge.className = 'gyro-badge off';
-    status.textContent = 'Giroscopio no disponible';
-  }
-
-  document.getElementById('gyro-gz').textContent     = typeof data.gz       === 'number' ? data.gz.toFixed(3)      : '—';
-  document.getElementById('gyro-yaw').textContent    = typeof data.yaw      === 'number' ? data.yaw.toFixed(1)     : '—';
-  document.getElementById('gyro-heading').textContent = typeof data.heading === 'number' ? ['N','E','S','O'][data.heading] ?? '—' : '—';
-}
-
-function connectGyroWS() {
-  if (gyroReconnectTimer) { clearTimeout(gyroReconnectTimer); gyroReconnectTimer = null; }
-  if (gyroWs) { try { gyroWs.close(); } catch {} }
-
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const url = `${proto}//${location.host}/ws/telemetry`;
-
-  gyroWs = new WebSocket(url);
-
-  gyroWs.onopen = () => {
-    document.getElementById('gyro-status').textContent = 'Conectado — esperando datos…';
-  };
-
-  gyroWs.onmessage = (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      if (data.type === 'gyro') updateGyroUI(data);
-    } catch (e) {
-      console.warn('[GYRO WS] JSON invalido', ev.data);
-    }
-  };
-
-  gyroWs.onclose = () => {
-    document.getElementById('gyro-status').textContent = 'Reconectando…';
-    gyroReconnectTimer = setTimeout(connectGyroWS, 3000);
-  };
-
-  gyroWs.onerror = () => {
-    document.getElementById('gyro-status').textContent = 'Error de conexion';
-  };
-}
-
 setInterval(checkStatus, 3000);
 checkStatus();
-connectGyroWS();
+loadState();
+renderCommands();
+
+window.addEventListener('beforeunload', () => {
+  if (clearAllTimer) clearTimeout(clearAllTimer);
+});
 </script>
 
 </body>

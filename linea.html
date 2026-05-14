@@ -444,6 +444,7 @@ function selectEndpoint(type, nodeId) {
     document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
     renderLineGraph();
     renderSearchTree(null);
+    saveState();
     return;
   }
 
@@ -468,6 +469,7 @@ function selectEndpoint(type, nodeId) {
   document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
   renderLineGraph();
   renderSearchTree(null);
+  saveState();
 }
 
 function nextDifferentNode(nodeId) {
@@ -487,6 +489,7 @@ function clearBlockedNodes() {
   document.getElementById('optimal-route').innerHTML = '<div class="optimal-route-title">Recorrido óptimo</div><div class="optimal-route-step">Sin calcular</div>';
   renderLineGraph();
   renderSearchTree(null);
+  localStorage.removeItem('carroesp_linea_state');
 }
 
 const minCostTo = (() => {
@@ -662,6 +665,7 @@ function solveLineGraph() {
   renderOptimalRoute(result);
   renderLineGraph();
   renderSearchTree(result.tree);
+  saveState();
 }
 
 function renderOptimalRoute(result) {
@@ -810,10 +814,65 @@ function edgeKey(a, b) {
   return [a, b].sort().join('-');
 }
 
+function saveState() {
+  try {
+    const state = {
+      startNode,
+      endNode,
+      blockedNodes: Array.from(blockedNodes),
+      selectionMode,
+      currentPath,
+      currentCommands,
+    };
+    localStorage.setItem('carroesp_linea_state', JSON.stringify(state));
+  } catch {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('carroesp_linea_state');
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    startNode = state.startNode || 'A';
+    endNode = state.endNode || 'J';
+    blockedNodes = new Set(state.blockedNodes || []);
+    selectionMode = state.selectionMode || 'start';
+    currentPath = state.currentPath || [];
+    currentCommands = state.currentCommands || [];
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function restoreUIFromState() {
+  document.getElementById('start-select').value = startNode;
+  document.getElementById('end-select').value = endNode;
+  setSelectionMode(selectionMode);
+  if (currentPath.length > 0) {
+    document.getElementById('route-output').textContent = currentPath.join(' -> ');
+    document.getElementById('commands-output').innerHTML = currentCommands.map((command, index) => `<div class="command">${index + 1}. ${command}</div>`).join('');
+    document.getElementById('send-btn').disabled = currentCommands.length === 0;
+    updateBlockedHeuristic();
+    const result = astarGraph(startNode, endNode);
+    currentTree = result.tree;
+    renderLineGraph();
+    renderSearchTree(result.tree);
+  } else {
+    renderLineGraph();
+    renderSearchTree(null);
+  }
+}
+
 populateSelectors();
 setSelectionMode('start');
-renderLineGraph();
-renderSearchTree(null);
+const hasState = loadState();
+if (hasState) {
+  restoreUIFromState();
+} else {
+  renderLineGraph();
+  renderSearchTree(null);
+}
 </script>
 </body>
 </html>
