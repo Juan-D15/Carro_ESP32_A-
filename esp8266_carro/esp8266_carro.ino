@@ -16,12 +16,12 @@ const int ENB = D3; const int IN3 = D5; const int IN4 = D8;
 
 // ========== VARIABLES DE VELOCIDAD ==========
 // Rango válido: 0–255
-const int SPEED_ADELANTE = 160;   // Velocidad de avance/retroceso
-const int SPEED_GIRO     = 180;   // Velocidad al girar
+const int SPEED_ADELANTE = 245;   // Velocidad de avance/retroceso
+const int SPEED_GIRO     = 250;   // Velocidad al girar
 
 // ========== DURACIONES ==========
-const unsigned long DUR_ADELANTE  = 350;   // ms que dura un paso adelante/atrás
-const unsigned long DUR_GIRO      = 210;   // ms que dura el giro (ajusta para calibrar 90°)
+const unsigned long DUR_ADELANTE  = 175;   // ms que dura un paso adelante/atrás
+const unsigned long DUR_GIRO      = 200;   // ms que dura el giro (ajusta para calibrar 90°)
 const unsigned long DUR_POST_GIRO = 1000;  // ms de pausa DESPUÉS de cada giro
 const unsigned long DUR_PAUSA     = 180;   // ms entre comandos consecutivos
 
